@@ -22,7 +22,7 @@ if __name__ == "__main__":
     root = Path(__file__).parents[1]
     data_path = root / "data"
 
-    questions_path = root / "questions.yaml"
+    questions_path = data_path / "questions.yaml"
     questions = load_questions(questions_path)
 
     with open(data_path / "data.jsonl", "r", encoding="utf-8") as f:

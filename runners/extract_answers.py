@@ -49,8 +49,8 @@ def done_docs(out_path: Path) -> set[str]:
 if __name__ == "__main__":
 
     root = Path(__file__).parents[1]
-    md_path = root / "data" / "processed" / "md"
-    questions_path = root / "questions.yaml"
+    md_path = root / "data/processed/md"
+    questions_path = root / "data/questions.yaml"
     out_path = root / "data" / f"responses_{LANGUAGE}.jsonl"
 
     questions = load_questions(questions_path)
