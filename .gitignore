@@ -216,3 +216,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+*.csv
+*.xlsx
+*.json
+*.jsonl
+*.pdf
+*.txt
+*.env
+*.md
+*.png
+*.xml
+
+.idea
+
+secrets/
+!README.md
+

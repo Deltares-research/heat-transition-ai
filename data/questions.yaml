@@ -1,0 +1,113 @@
+# Warmteprogramma extraction questions.
+# type: split = {woningen, utiliteit}; count; bool; text
+# Answer null / niet_vermeld when the document is silent. Never 0.
+
+- id: gebouwen_totaal
+  type: split
+  nl: Hoeveel gebouwen telt de gemeente in totaal?
+  en: Total number of buildings in the municipality?
+
+- id: niet_aardgasvrij
+  type: split
+  nl: Hoeveel gebouwen zijn nog niet aardgasvrij?
+  en: How many buildings are not yet natural-gas-free?
+
+- id: gepland_collectief
+  type: split
+  nl: Hoeveel gebouwen zijn gepland voor een collectieve warmte-oplossing?
+  en: How many buildings are planned for a collective heating solution?
+
+- id: gepland_individueel
+  type: split
+  nl: Hoeveel gebouwen zijn gepland voor een individuele oplossing (all-electric)?
+  en: How many buildings are planned for an individual solution (all-electric)?
+
+- id: warmtenet_ht_mt
+  type: split
+  nl: Hoeveel gebouwen komen op een warmtenet op hoge/middentemperatuur (HT/MT)?
+  en: How many buildings connect to an HT/MT heat network?
+
+- id: warmtenet_lt_zlt
+  type: split
+  nl: Hoeveel gebouwen komen op een warmtenet op lage/zeer lage temperatuur (LT/ZLT)?
+  en: How many buildings connect to an LT/VLT heat network?
+
+- id: geothermie
+  type: split
+  nl: Hoeveel gebouwen worden voorzien via geothermie?
+  en: How many buildings are supplied by geothermal energy?
+
+- id: groen_gas
+  type: split
+  nl: Hoeveel gebouwen worden voorzien via groen gas?
+  en: How many buildings are supplied by green gas?
+
+- id: waterstof
+  type: split
+  nl: Hoeveel gebouwen worden voorzien via waterstof?
+  en: How many buildings are supplied by hydrogen?
+
+- id: isolatieopgave
+  type: split
+  nl: Voor hoeveel gebouwen geldt een isolatie-opgave?
+  en: How many buildings have an insulation requirement?
+
+- id: gebiedsindeling
+  type: count
+  nl: Is er een gebiedsindeling gemaakt, en zo ja, hoeveel gebieden?
+  en: Is there a zoning of the municipality, and if so, how many zones?
+
+- id: aanwijsbevoegdheid
+  type: count
+  nl: In hoeveel gebieden wordt de aanwijsbevoegdheid ingezet of voorgenomen?
+  en: In how many zones are designation powers used or planned?
+
+- id: mer_beoordeling
+  type: bool
+  nl: Is er een m.e.r.-beoordeling als eerste toets uitgevoerd?
+  en: Was an initial SEA screening carried out?
+
+- id: plan_mer_plicht
+  type: bool
+  nl: Is er sprake van een plan-m.e.r.-plicht?
+  en: Is a formal Plan-SEA mandatory?
+
+- id: plan_mer_opgesteld
+  type: bool
+  nl: Is er een plan-MER opgesteld?
+  en: Has a Plan-SEA report been prepared?
+
+- id: publiek_warmtebedrijf
+  type: text
+  nl: Is er een publiek warmtebedrijf, bestaand of in oprichting?
+  en: Is there a public heat utility, existing or being established?
+
+- id: warmtegemeenschappen
+  type: count
+  nl: Zijn er lokale warmtegemeenschappen, en zo ja, hoeveel?
+  en: Are there local heat communities, and if so, how many?
+
+- id: uitvoeringsparagraaf
+  type: bool
+  nl: Is er een uitvoeringsparagraaf opgenomen of als apart document bijgevoegd?
+  en: Is an implementation section included or attached separately?
+
+- id: fte_raming
+  type: text
+  nl: Is er een raming van benodigde FTE's, en wordt een knelpunt benoemd?
+  en: Is there an FTE estimate, and is a bottleneck flagged?
+
+- id: investeringskosten
+  type: text
+  nl: Is er een raming van de benodigde investeringskosten?
+  en: Is there an estimate of required investment costs?
+
+- id: financiele_dekking
+  type: text
+  nl: Is de wijze van financiële dekking van deze middelen vermeld?
+  en: Is the method of financing these resources described?
+
+- id: participatie
+  type: text
+  nl: Hoe is participatie van bewoners en bedrijven ingevuld?
+  en: How was participation of residents and businesses implemented?
