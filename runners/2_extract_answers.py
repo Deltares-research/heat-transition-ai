@@ -11,6 +11,8 @@ load_dotenv(Path(__file__).parents[1]/".env")
 LANGUAGE = os.environ.get("LANGUAGE", "en")
 BATCH_MODE = os.environ.get("BATCH_MODE", "on")
 
+print("LANGUAGE:", LANGUAGE)
+print("BATCH_MODE:", BATCH_MODE)
 
 LIMIT: int | None = None      # first N documents, or None for all
 FORCE = False                 # True re-answers everything
@@ -50,7 +52,7 @@ if __name__ == "__main__":
 
     root = Path(__file__).parents[1]
     md_path = root / "data/processed/md"
-    questions_path = root / "data/questions.yaml"
+    questions_path = root / "data/input/questions.yaml"
     out_path = root / "data" / f"responses_{LANGUAGE}.jsonl"
 
     questions = load_questions(questions_path)

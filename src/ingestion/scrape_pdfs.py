@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from jinja2 import Environment, StrictUndefined
 import trafilatura
 from bs4 import BeautifulSoup
+from xml.etree import ElementTree as ET
+from urllib.parse import quote
 
 
 TRANSLATIONS = {
@@ -161,8 +163,110 @@ def find_pdf_link(html: str, base_url: str) -> str | None:
     return normalize_url(best, base_url) if best and best_score >= 1.0 else None
 
 
-def resolve(url: str, session: requests.Session) -> tuple[str, bytes, str]:
-    """Return (kind, payload, final_url); kind is 'pdf' or 'html'."""
+
+SRU = "https://zoekservice.overheid.nl/sru/Search"
+_XML_HEADERS = {"User-Agent": UA, "Accept": "application/xml, text/xml"}
+
+
+def _cvdr_id(url_or_id: str) -> str | None:
+    """Extract the CVDR work id, e.g. 'CVDR735186' (version stripped)."""
+    m = re.search(r"CVDR\d+", url_or_id, re.I)
+    return m.group(0).upper() if m else None
+
+
+def _local(root: ET.Element, name: str) -> ET.Element | None:
+    """First descendant whose tag local-name == name (namespace-agnostic)."""
+    for el in root.iter():
+        if el.tag.rsplit("}", 1)[-1] == name:
+            return el
+    return None
+
+
+def _local_text(root: ET.Element, name: str) -> str | None:
+    el = _local(root, name)
+    return el.text.strip() if el is not None and el.text and el.text.strip() else None
+
+
+def _cvdr_xml_to_md(xml_bytes: bytes) -> str:
+    """Flatten CVDR regulation body XML into markdown, namespace-agnostic."""
+    root = ET.fromstring(xml_bytes)
+    lines: list[str] = []
+
+    def lname(el: ET.Element) -> str:
+        return el.tag.rsplit("}", 1)[-1]
+
+    def walk(el: ET.Element) -> None:
+        tag = lname(el)
+        if tag in ("kop", "titel"):
+            txt = " ".join("".join(el.itertext()).split())
+            if txt:
+                lines.append(f"\n## {txt}\n")
+            return
+        if tag in ("al", "tekst"):
+            txt = " ".join("".join(el.itertext()).split())
+            if txt:
+                lines.append(txt)
+            return
+        for child in el:
+            walk(child)
+
+    walk(root)
+    md = "\n\n".join(lines)
+    return re.sub(r"\n{3,}", "\n\n", md).strip()
+
+
+def fetch_cvdr(url_or_id: str, session: requests.Session) -> tuple[str, dict]:
+    """Return (markdown, metadata) for a CVDR regulation via the official repository.
+
+    Searches by work id and takes the record SRU returns (the current version),
+    reading the XML resource URL from <enrichedData><publicatieurl_xml>.
+    """
+    work_id = _cvdr_id(url_or_id)
+    if not work_id:
+        raise ValueError(f"no CVDR id in {url_or_id!r}")
+
+    # SRU exact-match needs the version suffix; _1 resolves, and the record's
+    # own enrichedData points at whichever version is current.
+    q = quote(f"dcterms.identifier=={work_id}_1")
+    sru_url = (
+        f"{SRU}?operation=searchRetrieve&version=1.2&x-connection=cvdr"
+        f"&query={q}&maximumRecords=1"
+    )
+    sr = session.get(sru_url, timeout=60, headers=_XML_HEADERS)
+    sr.raise_for_status()
+    record = ET.fromstring(sr.content)
+
+    if (_local_text(record, "numberOfRecords") or "0") == "0":
+        raise LookupError(f"{work_id} not found in CVDR SRU")
+
+    xml_url = _local_text(record, "publicatieurl_xml")
+    if not xml_url:
+        raise LookupError(f"no publicatieurl_xml for {work_id}")
+
+    meta = {
+        "cvdr_id": _local_text(record, "identifier") or work_id,
+        "title": _local_text(record, "title"),
+        "creator": _local_text(record, "creator"),
+        "issued": _local_text(record, "issued"),
+        "modified": _local_text(record, "modified"),
+        "org_type": _local_text(record, "organisatietype"),
+        "preferred_url": _local_text(record, "preferred_url"),
+        "xml_url": xml_url,
+    }
+
+    xr = session.get(xml_url, timeout=60, headers=_XML_HEADERS)
+    xr.raise_for_status()
+    return _cvdr_xml_to_md(xr.content), meta
+
+
+def resolve(url: str, session: requests.Session) -> tuple[str, Any, str]:
+    """Return (kind, payload, final_url). kind is 'pdf' (bytes), 'html' (bytes),
+    or 'cvdr' (markdown str)."""
+    if _cvdr_id(url):
+        md, meta = fetch_cvdr(url, session)
+        final = meta.get("preferred_url") or f"https://lokaleregelgeving.overheid.nl/{meta['cvdr_id']}"
+        return "cvdr", md, final
+
     r = session.get(url, timeout=60, headers={"User-Agent": UA})
     r.raise_for_status()
 
@@ -247,60 +351,72 @@ def download_pdfs(path: Path | str, out_path: Path | str, to_md: bool = False, r
 
     corpus_ids = [doc.stem for doc in out_pdf_path.iterdir()]
 
-    for i, row in enumerate(tqdm(data)):
-        row["id"] = str(i+1)
-        row["fetched_at"] = datetime.now(timezone.utc).isoformat()
-
-        if row["id"] in corpus_ids and not restart:
-            continue
-
-        raw = row.get("url")
-        if not isinstance(raw, str) or not raw.strip():
-            row.update(ok=False, reason="no url in sheet", source_type=None)
-            continue
-
-        try:
-            url = normalize_url(raw)
-            kind, payload, final_url = resolve(url, session)
-            row["source_type"] = kind
-            row["final_url"] = final_url
-
-            if kind == "pdf":
-                ok, reason = validate_pdf(payload)
-                row.update(ok=ok, reason=reason)
-                if not ok:
-                    continue
-                (out_pdf_path / f"{row['id']}.pdf").write_bytes(payload)
-            else:
-                row.update(ok=True, reason="html page (no pdf found)")
-
-            if to_md:
-                if kind == "pdf":
-                    md = pdf_to_md(payload, row["id"], out_assets_path)
-                else:
-                    md = html_to_md(payload, final_url)
-
-                if len(md.strip()) < 200:
-                    row.update(ok=False, reason=f"near-empty extraction ({len(md.strip())} chars)")
-                    continue
-
-                md = render_md(row, md)
-
-                md_file = out_md_path / f"{row['id']}.md"
-                md_file.write_text(md, encoding="utf-8")
-
-                row["md_path"] = str(md_file.relative_to(out_path))
-                row["chars"] = len(md)
-                data[i] = row
-
-        except Exception as e:
-            row.update(ok=False, reason=repr(e))
-
     with open(out_path/"data.jsonl", "w", encoding="utf-8") as f:
-        for row in data:
+
+        print("resume dir:", out_pdf_path, "->", list(out_pdf_path.iterdir()))
+
+        for i, row in enumerate(tqdm(data)):
+
+            if not i+1 in [1, 3, 6, 7, 10]:
+                continue
+
+            row["id"] = str(i+1)
+            row["fetched_at"] = datetime.now(timezone.utc).isoformat()
+
+            if row["id"] in corpus_ids and not restart:
+                continue
+
+            raw = row.get("url")
+            if not isinstance(raw, str) or not raw.strip():
+                row.update(ok=False, reason="no url in sheet", source_type=None)
+                continue
+
+            try:
+                url = normalize_url(raw)
+                kind, payload, final_url = resolve(url, session)
+                row["source_type"] = kind
+                row["final_url"] = final_url
+
+                if kind == "pdf":
+                    ok, reason = validate_pdf(payload)
+                    row.update(ok=ok, reason=reason)
+                    if not ok:
+                        continue
+                    (out_pdf_path / f"{row['id']}.pdf").write_bytes(payload)
+                elif kind == "cvdr":
+                    row.update(ok=True, reason="cvdr regulation")
+                else:
+                    row.update(ok=True, reason="html page (no pdf found)")
+
+                if to_md:
+                    if kind == "pdf":
+                        md = pdf_to_md(payload, row["id"], out_assets_path)
+                    elif kind == "cvdr":
+                        md = payload            # already markdown
+                    else:
+                        md = html_to_md(payload, final_url)
+
+                    if len(md.strip()) < 200:
+                        row.update(ok=False, reason=f"near-empty extraction ({len(md.strip())} chars)")
+                        continue
+
+                    md = render_md(row, md)
+
+                    md_file = out_md_path / f"{row['id']}.md"
+                    md_file.write_text(md, encoding="utf-8")
+
+                    row["md_path"] = str(md_file.relative_to(out_path))
+                    row["chars"] = len(md)
+                    data[i] = row
+
+            except Exception as e:
+                row.update(ok=False, reason=repr(e))
+
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            f.flush()
 
 
 if __name__ == "__main__":
 
     pass
+
