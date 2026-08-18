@@ -229,6 +229,7 @@ __marimo__/
 *.png
 *.xml
 *.duckdb
+*.wal
 
 .idea
 
