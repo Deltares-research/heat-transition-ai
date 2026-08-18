@@ -228,6 +228,7 @@ __marimo__/
 *.md
 *.png
 *.xml
+*.duckdb
 
 .idea
 

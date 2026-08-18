@@ -1,15 +1,13 @@
 from __future__ import annotations
-
 import os
 import re
 import unicodedata
 from pathlib import Path
-
 import pandas as pd
 import yaml
 from dotenv import load_dotenv
+from src import DuckClient, clean, parse_response
 
-from src import DuckClient, clean
 
 ALIASES = {
     "den haag": "s gravenhage",
@@ -41,8 +39,9 @@ if __name__ == "__main__":
     data_path = Path(__file__).parents[1] / "data"
     db = DuckClient(data_path / f"{DB_NAME}.duckdb")
 
-    # ── questions ────────────────────────────────────────────
     qs = yaml.safe_load((data_path / "input/questions.yaml").read_text(encoding="utf-8"))
+    QTYPES = {q["id"]: q["type"] for q in qs}
+
     db.conn.executemany(
         """
         INSERT OR REPLACE INTO question (id, section, type, values, nl, en, ord)
@@ -53,7 +52,6 @@ if __name__ == "__main__":
     )
     print(f"questions: {len(qs)}")
 
-    # ── load frames ──────────────────────────────────────────
     df_gem = pd.read_json(data_path / "gemeente_data.jsonl", lines=True)
     df_gem["key"] = df_gem["gemeente"].map(norm)
 
@@ -69,7 +67,6 @@ if __name__ == "__main__":
         print(f"WARNING: {len(unmatched)} documents matched no municipality: "
               f"{sorted(unmatched.tolist())}")
 
-    # ── gemeente + response ──────────────────────────────────
     n_resp = 0
     for _, row in df_gem.iterrows():
 
@@ -93,20 +90,22 @@ if __name__ == "__main__":
 
         for _, r in df_resp.loc[df_resp["doc_id"] == d["id"]].iterrows():
             modality = clean(r.get("modality"))
+            qtype = QTYPES.get(r["question_id"], "text")
+
             db.insert_response({
                 "gemeentecode": row["gemeentecode"],
-                "question_id":  r["question_id"],
-                "doc_id":       d["id"],
-                "response":     r.get("response"),
-                "modality":     modality if modality in MODALITIES else None,
-                "ref":          r.get("ref"),
-                "page":         r.get("page"),
-                "note":         r.get("note"),
-                "lang":         LANGUAGE,
+                "question_id": r["question_id"],
+                "doc_id": d["id"],
+                "response": clean(r.get("response")),
+                "modality": modality if modality in MODALITIES else None,
+                "ref": r.get("ref"),
+                "page": r.get("page"),
+                "note": r.get("note"),
+                "lang": LANGUAGE,
+                **parse_response(r.get("response"), qtype),
             })
             n_resp += 1
 
-    # ── report ───────────────────────────────────────────────
     total = db.fetch("SELECT count(*) FROM gemeente")[0][0]
     without = db.fetch("SELECT count(*) FROM gemeente WHERE url IS NULL")[0][0]
     print(f"gemeenten: {total} ({without} without a programme)")

@@ -60,13 +60,15 @@ def load_queries(path: Path = QUERIES_PATH) -> dict[str, dict]:
 
 class DuckClient:
 
-    def __init__(self, db_path: Path | str):
+    def __init__(self, db_path: Path | str, read_only: bool = False):
 
         if not isinstance(db_path, Path):
             db_path = Path(db_path)
 
-        self.conn = duckdb.connect(str(db_path))
-        self.conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+        self.conn = duckdb.connect(str(db_path), read_only=read_only)
+        if not read_only:
+            self.conn.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+            
         self.queries = load_queries()
 
     def close(self) -> None:
@@ -104,11 +106,6 @@ class DuckClient:
                 for n, q in self.queries.items()]
 
     def query(self, name: str, **params):
-        """
-        Run a named query from queries.sql. DataFrame out.
-
-            db.query("who_answered", question_id="waterstof_status", pattern="%warmtenet%")
-        """
         if name not in self.queries:
             raise KeyError(f"unknown query {name!r}. Available: {sorted(self.queries)}")
 
@@ -118,12 +115,10 @@ class DuckClient:
             raise ValueError(f"{name} needs {sorted(missing)}")
 
         sql = spec["query"]
-        values = []
-        for placeholder in re.findall(r"\$(\w+)", sql):
-            values.append(clean(params[placeholder]))
+        values = [clean(params[p]) for p in re.findall(r"\$(\w+)", sql)]
         sql = re.sub(r"\$\w+", "?", sql)
 
-        return self.conn.execute(sql, values).fetchall()
+        return self.conn.execute(sql, values).df()
 
 
 if __name__ == "__main__":

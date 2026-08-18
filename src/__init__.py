@@ -1,7 +1,6 @@
 from src.ingestion import download_pdfs
 from src.responder import ask, ask_batch
-from src.db import DuckClient, clean
-from src.mcp import server as mcp
+from src.db import DuckClient, clean, parse_response
 
 __all__ = [
     "download_pdfs",
@@ -9,6 +8,6 @@ __all__ = [
     "ask_batch",
     "DuckClient",
     "clean",
-    "mcp",
+    "parse_response",
 ]
 

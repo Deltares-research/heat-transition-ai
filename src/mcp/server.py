@@ -21,14 +21,16 @@ from mcp.server import MCPServer
 from src.db.duck_client import DuckClient
 
 
-DB_PATH = Path(os.environ.get(
-    "DB_PATH",
-    Path(__file__).parents[2] / "data" / f"{os.environ.get('DB_NAME', 'nplw')}.duckdb",
-))
+# DB_PATH = Path(os.environ.get(
+#     "DB_PATH",
+#     Path(__file__).parents[2] / "data" / f"{os.environ.get('DB_NAME', 'nplw')}.duckdb",
+# ))
+
+DB_PATH = "C:\\Users\\mavritsa\\repositories\\heat-transition-ai\\data\\nplw.duckdb"
 
 MAX_ROWS = int(os.environ.get("MCP_MAX_ROWS", "200"))
 
-db = DuckClient(DB_PATH)
+db = DuckClient(DB_PATH, read_only=True)
 
 INSTRUCTIONS = """
 This server answers questions about Dutch municipal heat-transition programmes
@@ -62,14 +64,20 @@ Rules for using it well:
 """.strip()
 
 
-def _serialise(df: pd.DataFrame) -> str:
+def _serialise(result: Any) -> str:
+    if isinstance(result, pd.DataFrame):
+        df = result
+    elif isinstance(result, list):
+        df = pd.DataFrame(result)          # list of dicts, or of tuples
+    else:
+        df = pd.DataFrame([result])
+
     total = len(df)
-    truncated = total > MAX_ROWS
     payload: dict[str, Any] = {
         "rows": json.loads(df.head(MAX_ROWS).to_json(orient="records", date_format="iso")),
         "row_count": total,
     }
-    if truncated:
+    if total > MAX_ROWS:
         payload["truncated"] = f"showing first {MAX_ROWS} of {total} rows"
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
