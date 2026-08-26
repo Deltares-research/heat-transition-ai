@@ -2,62 +2,88 @@ from __future__ import annotations
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Iterator
+
 import pandas as pd
 import requests
-from pathlib import Path
 
 BASE = "https://datasets.cbs.nl/odata/v1/CBS"
-TIMEOUT = 60
+TIMEOUT = 120
 
-# Regionale kerncijfers Nederland — population, area, density, housing stock.
-# Stable table, cited in the Enqualia report as the enrichment source.
-KERNCIJFERS = "70072ned"
+# Kerncijfers wijken en buurten
+KWB = "86165NED"
+DIMENSION = "WijkenEnBuurten"
 
-# Measures wanted from KERNCIJFERS, resolved at runtime by matching Title.
-# CBS measure identifiers carry numeric suffixes (Bevolkingsdichtheid_57) that
-# change between table revisions, so nothing here is hardcoded.
-# Each value is a tuple of title fragments; first match wins.
 WANTED = {
-    # 70072ned has both a 1-January count and a period average; the average
-    # yields half-people (161143.5), so match the 1-January measure first.
-    "inwoners":              ("op 1 januari", "aantal inwoners", "totale bevolking"),
+    # size
+    "inwoners":              ("aantal inwoners", "inwoners > totaal"),
+    "huishoudens":           ("huishoudens totaal", "particuliere huishoudens"),
+    "huishoudensgrootte":    ("gemiddelde huishoudensgrootte",),
     "bevolkingsdichtheid":   ("bevolkingsdichtheid",),
-    # Reported in km2 despite the group label; see build() for the check.
-    "oppervlakte_land_km2":  ("oppervlakte > land", "oppervlakte land", "land"),
-    "woningvoorraad":        ("woningvoorraad", "voorraad woningen"),
-    "woz_waarde_k":          ("gemiddelde woningwaarde", "woz"),
-    "huurwoningen_pct":      ("huurwoningen",),
+
+    # area
+    "oppervlakte_totaal":    ("oppervlakte > totaal", "oppervlakte totaal"),
+    "oppervlakte_land":      ("oppervlakte > land", "oppervlakte land"),
+
+    # buildings — the core of it
+    "woningvoorraad":        ("woningvoorraad",),
+    "woningen_bouwjaar_voor2000": ("bouwjaar voor 2000",),
+    "woningen_bouwjaar_vanaf2000": ("bouwjaar vanaf 2000",),
     "koopwoningen_pct":      ("koopwoningen",),
-    # Must be the 1-5 class code, not an address count within a class.
+    "huurwoningen_pct":      ("huurwoningen totaal", "huurwoningen"),
+    "corporatiewoningen_pct": ("in bezit woningcorporatie", "corporatie"),
+    "woz_waarde":            ("gemiddelde woningwaarde", "woz"),
+    "meergezins_pct":        ("meergezinswoning",),
+    "leegstand_pct":         ("leegstand",),
+
+    # non-residential
+    "niet_woningen":         ("niet-woningen", "aantal niet-woningen"),
+
+    # energy — present in some KWB years
+    "gas_gemiddeld":         ("gemiddeld aardgasverbruik", "aardgasverbruik totaal"),
+    "elek_gemiddeld":        ("gemiddeld elektriciteitsverbruik", "elektriciteitsverbruik totaal"),
+    "stadsverwarming_pct":   ("stadsverwarming", "blokverwarming"),
+
+    # context
     "stedelijkheid":         ("mate van stedelijkheid",),
     "omgevingsadressen":     ("omgevingsadressendichtheid",),
 }
 
 
+PROVINCE_BY_GROUP = {
+    "GMPV20": "Groningen",     "GMPV21": "Fryslân",
+    "GMPV22": "Drenthe",       "GMPV23": "Overijssel",
+    "GMPV24": "Flevoland",     "GMPV25": "Gelderland",
+    "GMPV26": "Utrecht",       "GMPV27": "Noord-Holland",
+    "GMPV28": "Zuid-Holland",  "GMPV29": "Zeeland",
+    "GMPV30": "Noord-Brabant", "GMPV31": "Limburg",
+}
+
+
 def odata_pages(url: str, params: dict | None = None) -> Iterator[dict]:
-    """Yield rows from an OData v4 endpoint, following @odata.nextLink."""
     session = requests.Session()
+    n = 0
     while url:
         r = session.get(url, params=params, timeout=TIMEOUT)
         r.raise_for_status()
         payload = r.json()
-        yield from payload.get("value", [])
+        rows = payload.get("value", [])
+        n += len(rows)
+        yield from rows
         url = payload.get("@odata.nextLink")
-        params = None  # nextLink already carries the query
+        params = None
+        if url:
+            print(f"    ...{n:,} rows", end="\r", file=sys.stderr)
+    if n:
+        print(f"    {n:,} rows          ", file=sys.stderr)
 
 
 def odata_frame(table: str, resource: str, **params) -> pd.DataFrame:
-    url = f"{BASE}/{table}/{resource}"
-    return pd.DataFrame(odata_pages(url, params or None))
+    return pd.DataFrame(odata_pages(f"{BASE}/{table}/{resource}", params or None))
 
-
-# ──────────────────────────────────────────────────────────────
-# Discovery helpers — CBS renames and re-codes tables every year
-# ──────────────────────────────────────────────────────────────
 
 def discover(term: str) -> pd.DataFrame:
-    """Find CBS tables whose title contains `term`."""
     df = pd.DataFrame(
         odata_pages(f"{BASE}/Datasets", {"$filter": f"contains(Title,'{term}')"})
     )
@@ -65,36 +91,11 @@ def discover(term: str) -> pd.DataFrame:
     return df[cols].sort_values("Title") if cols else df
 
 
-def list_measures(table: str) -> pd.DataFrame:
-    df = odata_frame(table, "MeasureCodes")
-    if df.empty:
-        raise SystemExit(f"{table}: MeasureCodes returned nothing. Wrong table code?")
-    return df[[c for c in ("Identifier", "Title", "Unit") if c in df]]
-
-
-def list_periods(table: str) -> pd.DataFrame:
-    df = odata_frame(table, "PeriodenCodes")
-    if df.empty:
-        raise SystemExit(f"{table}: PeriodenCodes returned nothing.")
-    return df[[c for c in ("Identifier", "Title") if c in df]]
-
-
-def list_dimensions(table: str) -> list[str]:
-    props = odata_frame(table, "Properties")
-    return props["Identifier"].tolist() if "Identifier" in props else []
-
-
 def measure_paths(table: str) -> pd.DataFrame:
-    """
-    MeasureCodes carries leaf titles only ("Totaal"), with the meaning held in
-    the MeasureGroups hierarchy. Return the catalog with a `Path` column
-    holding the full "Group > Subgroup > Title" string, which is what the
-    WANTED patterns are matched against.
-    """
-    cat = list_measures(table).copy()
-    raw = odata_frame(table, "MeasureCodes")
-    if "MeasureGroupId" in raw:
-        cat["MeasureGroupId"] = raw["MeasureGroupId"]
+    """Catalog with a `Path` column: 'Group > Subgroup > Title'."""
+    cat = odata_frame(table, "MeasureCodes")
+    if cat.empty:
+        raise SystemExit(f"{table}: MeasureCodes returned nothing. Wrong table code?")
 
     groups = odata_frame(table, "MeasureGroups")
     if groups.empty or "MeasureGroupId" not in cat:
@@ -120,7 +121,6 @@ def measure_paths(table: str) -> pd.DataFrame:
 
 
 def resolve_measures(table: str) -> dict[str, str]:
-    """Map CBS measure identifier -> our column name, matching on full path."""
     cat = measure_paths(table)
     paths = cat["Path"].fillna("").str.lower()
 
@@ -134,274 +134,148 @@ def resolve_measures(table: str) -> dict[str, str]:
             if mask.any():
                 hit = cat.loc[mask, "Identifier"].iloc[0].strip()
                 break
-        if hit:
+        if hit and hit not in resolved:
             resolved[hit] = col
-        else:
+        elif not hit:
             unmatched.append(col)
 
+    print(f"resolved {len(resolved)}/{len(WANTED)} measures", file=sys.stderr)
     if unmatched:
-        print(f"note: no measure matched for {unmatched}", file=sys.stderr)
+        print(f"  not matched: {unmatched}", file=sys.stderr)
         for col in unmatched:
             words = [w for p in WANTED[col] for w in p.split() if len(w) > 4]
             if not words:
                 continue
             mask = paths.str.contains("|".join(re.escape(w.lower()) for w in words))
-            cand = cat.loc[mask, ["Identifier", "Path"]].head(8)
-            if not cand.empty:
-                print(f"  candidates for '{col}':", file=sys.stderr)
-                for _, row in cand.iterrows():
-                    print(f"    {row.Identifier:<32} {row.Path}", file=sys.stderr)
+            for _, row in cat.loc[mask, ["Identifier", "Path"]].head(5).iterrows():
+                print(f"    ? {col:26} {row.Identifier:<30} {row.Path}", file=sys.stderr)
 
     if not resolved:
-        raise SystemExit(f"None of the wanted measures exist in {table}.")
-
-    print(f"resolved {len(resolved)} measures", file=sys.stderr)
-    lookup = cat.set_index("Identifier")
-    for ident, col in resolved.items():
-        row = lookup.loc[ident] if ident in lookup.index else None
-        unit = row.get("Unit", "") if row is not None else ""
-        path = row.get("Path", "") if row is not None else ""
-        print(f"  {col:<22} {ident:<28} [{unit}] {path}", file=sys.stderr)
+        raise SystemExit(f"No wanted measures found in {table}.")
     return resolved
 
 
-def _period_has_data(table: str, period: str, probe_measure: str) -> bool:
-    """A period can exist in the catalog with no observations yet."""
-    obs = odata_frame(
-        table,
-        "Observations",
-        **{
-            "$filter": f"startswith(RegioS,'GM') and Perioden eq '{period}' "
-                       f"and Measure eq '{probe_measure}'",
-            "$select": "Value",
-            "$top": "50",
-        },
-    )
-    return not obs.empty and obs["Value"].notna().any()
-
-
-def resolve_period(table: str, year: int | None, probe_measure: str) -> str:
-    """
-    Validate the requested year, or walk back from the newest annual period
-    until one actually carries data. CBS publishes the period code before the
-    figures, so the newest listed year is often empty.
-    """
-    cat = list_periods(table)
-    annual = sorted(i.strip() for i in cat["Identifier"] if i.strip().endswith("JJ00"))
-    if not annual:
-        raise SystemExit(f"{table}: no annual (JJ00) periods found.")
-
-    if year is not None:
-        want = f"{year}JJ00"
-        if want not in annual:
-            raise SystemExit(
-                f"Period {want} not available in {table}.\n"
-                f"Available range: {annual[0]} .. {annual[-1]}"
-            )
-        if not _period_has_data(table, want, probe_measure):
-            print(f"WARNING: {want} exists but has no data for the probe measure.",
-                  file=sys.stderr)
-        return want
-
-    for period in reversed(annual[-6:]):
-        if _period_has_data(table, period, probe_measure):
-            print(f"using most recent populated period: {period}", file=sys.stderr)
-            return period
-
-    raise SystemExit(
-        f"None of the last 6 annual periods in {table} carry data "
-        f"for probe measure {probe_measure}."
-    )
-
-
-def fetch_kerncijfers(period: str, measures: dict[str, str]) -> pd.DataFrame:
-    """Wide frame of key figures, municipalities only."""
+def fetch_buurten(table: str, measures: dict[str, str],
+                  gemeente: str | None = None) -> pd.DataFrame:
+    """Wide frame, one row per buurt."""
     measure_filter = " or ".join(f"Measure eq '{m}'" for m in measures)
 
+    prefix = f"BU{gemeente.replace('GM', '')}" if gemeente else "BU"
+    print(f"  fetching {prefix}...", file=sys.stderr)
+
     obs = odata_frame(
-        KERNCIJFERS,
-        "Observations",
-        **{
-            "$filter": f"startswith(RegioS,'GM') and Perioden eq '{period}' "
-                       f"and ({measure_filter})",
-            "$select": "Measure,RegioS,Value",
-        },
+        table, "Observations",
+        **{"$filter": f"startswith({DIMENSION},'{prefix}') and ({measure_filter})",
+           "$select": f"Measure,{DIMENSION},Value"},
     )
     if obs.empty:
-        raise SystemExit(
-            f"Empty result for period {period} with {len(measures)} measures.\n"
-            f"Both were validated against the catalog, so this is likely a "
-            f"filter-syntax issue. Try one measure at a time to isolate it."
-        )
+        raise SystemExit("no buurt observations returned")
 
     obs["Measure"] = obs["Measure"].str.strip()
-
-    # Null observations exist for periods CBS has opened but not populated,
-    # and for municipalities that no longer exist. Dropping them here both
-    # keeps pivot_table from silently discarding all-null columns and leaves
-    # only municipalities that are actually current in this period.
-    before = len(obs)
     obs = obs[obs["Value"].notna()]
-    if obs.empty:
-        raise SystemExit(
-            f"All {before} observations for {period} are null — CBS has opened "
-            f"the period but not published figures. Pass an earlier year."
-        )
 
-    wide = obs.pivot_table(
-        index="RegioS", columns="Measure", values="Value", aggfunc="first"
-    ).rename(columns=measures)
+    wide = (
+        obs.pivot_table(index=DIMENSION, columns="Measure", values="Value",
+                        aggfunc="first")
+        .rename(columns=measures)
+    )
     wide.index = wide.index.str.strip()
-    wide.index.name = "gemeentecode"
+    wide.index.name = "code"
     return wide.reset_index()
 
 
-def fetch_regio_labels() -> pd.DataFrame:
-    """Municipality names and their parent regions (province, COROP)."""
-    codes = odata_frame(KERNCIJFERS, "RegioSCodes")
-    gm = codes[codes["Identifier"].str.strip().str.startswith("GM")].copy()
-    gm["Identifier"] = gm["Identifier"].str.strip()
-    keep = [c for c in ("Identifier", "Title", "DimensionGroupId") if c in gm]
-    return gm[keep].rename(
-        columns={"Identifier": "gemeentecode", "Title": "gemeente"}
-    )
+def fetch_labels(table: str) -> dict[str, str]:
+    """code -> name, for every level. Buurt rows need the wijk and gemeente names."""
+    codes = odata_frame(table, f"{DIMENSION}Codes")
+    codes["Identifier"] = codes["Identifier"].str.strip()
+    return dict(zip(codes["Identifier"], codes["Title"]))
 
 
-def fetch_gebieden(table: str) -> pd.DataFrame:
+def load_provinces(path: Path) -> dict[str, str]:
     """
-    Stedelijkheid, omgevingsadressendichtheid and the province mapping from
-    the annual 'Gebieden in Nederland' table. The table code changes each year —
-    pass it explicitly, find it with --discover "Gebieden in Nederland".
+    gemeentecode -> province, from gemeente_data.jsonl.
+
+    Uses the `province` column when present, otherwise derives it from the
+    CBS region group code (GMPV23 -> Overijssel), which fetch_gemeenten.py
+    carries as DimensionGroupId. The KWB table's own hierarchy does not
+    reliably expose provinces.
     """
-    obs = odata_frame(
-        table,
-        "Observations",
-        **{"$filter": "startswith(RegioS,'GM')", "$select": "Measure,RegioS,Value"},
-    )
-    if obs.empty:
-        print(f"note: {table} returned no municipal observations", file=sys.stderr)
-        return pd.DataFrame()
-    obs["Measure"] = obs["Measure"].str.strip()
-    wide = obs.pivot_table(
-        index="RegioS", columns="Measure", values="Value", aggfunc="first"
-    )
-    wide.index = wide.index.str.strip()
-    wide.index.name = "gemeentecode"
-    return wide.reset_index()
+    if not path.exists():
+        print(f"note: {path} not found — province will be null", file=sys.stderr)
+        return {}
+
+    out: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        code = r.get("gemeentecode")
+        prov = r.get("province") or PROVINCE_BY_GROUP.get(r.get("DimensionGroupId"))
+        if code and prov:
+            out[code] = prov
+
+    print(f"provinces loaded for {len(out)} municipalities", file=sys.stderr)
+    if not out:
+        print(f"  {path.name} has neither a 'province' key nor a recognised "
+              f"DimensionGroupId", file=sys.stderr)
+    return out
 
 
-# ──────────────────────────────────────────────────────────────
-# Assemble
-# ──────────────────────────────────────────────────────────────
+def build(table: str, gemeente_path: Path, gemeente: str | None = None) -> pd.DataFrame:
+    measures = resolve_measures(table)
+    out = fetch_buurten(table, measures, gemeente)
 
-def build(year: int | None = None, gebieden_table: str | None = None) -> pd.DataFrame:
-    measures = resolve_measures(KERNCIJFERS)
-    period = resolve_period(KERNCIJFERS, year, probe_measure=next(iter(measures)))
+    name_of = fetch_labels(table)
+    province_of = load_provinces(gemeente_path)
 
-    # Inner join: RegioSCodes lists every municipality the table has ever
-    # covered (700+ including ones merged away decades ago). Only those with
-    # observations in this period are current.
-    df = fetch_regio_labels().merge(
-        fetch_kerncijfers(period, measures), on="gemeentecode", how="inner"
-    )
+    # Codes nest: BU01930101 -> WK019301 -> GM0193
+    out["naam"] = out["code"].map(name_of)
+    out["wijkcode"] = "WK" + out["code"].str[2:8]
+    out["wijk_naam"] = out["wijkcode"].map(name_of)
+    out["gemeentecode"] = "GM" + out["code"].str[2:6]
+    out["gemeente_naam"] = out["gemeentecode"].map(name_of)
+    out["province"] = out["gemeentecode"].map(province_of)
 
-    if gebieden_table:
-        gb = fetch_gebieden(gebieden_table)
-        if not gb.empty:
-            df = df.merge(gb, on="gemeentecode", how="left")
+    front = ["code", "naam", "wijkcode", "wijk_naam",
+             "gemeentecode", "gemeente_naam", "province"]
+    out = out[front + [c for c in out.columns if c not in front]]
+    out = out.sort_values(["province", "gemeente_naam", "code"]).reset_index(drop=True)
 
-    dropped = set(measures.values()) - set(df.columns)
-    if dropped:
-        print(
-            f"note: resolved but empty for {period}: {sorted(dropped)} — "
-            f"CBS has no values for these in this year.",
-            file=sys.stderr,
-        )
+    print(f"\n{len(out):,} buurten in {out['gemeentecode'].nunique()} municipalities",
+          file=sys.stderr)
 
-    df["peiljaar"] = int(period[:4])
+    for col in ("naam", "wijk_naam", "gemeente_naam", "province"):
+        n = out[col].isna().sum()
+        if n:
+            print(f"WARNING: {col} null for {n:,} rows", file=sys.stderr)
 
-    # Derived features for peer-matching
-    if {"inwoners", "oppervlakte_land_km2"} <= set(df.columns):
-        df["dichtheid_inw_km2"] = (
-            df["inwoners"] / df["oppervlakte_land_km2"]
-        ).round(1)
-
-        # Cross-check: our computed density should track CBS's own figure.
-        # A large gap means the area measure is in different units than assumed.
-        if "bevolkingsdichtheid" in df:
-            both = df[["dichtheid_inw_km2", "bevolkingsdichtheid"]].dropna()
-            if not both.empty:
-                ratio = (both["dichtheid_inw_km2"] / both["bevolkingsdichtheid"]).median()
-                if not 0.9 < ratio < 1.1:
-                    print(
-                        f"WARNING: computed density is {ratio:.1f}x CBS's own figure. "
-                        f"The area measure is probably not km2 — check its Unit.",
-                        file=sys.stderr,
-                    )
-
-    if "stedelijkheid" in df:
-        vals = df["stedelijkheid"].dropna().unique()
-        if len(vals) and not set(vals) <= {1, 2, 3, 4, 5, 1.0, 2.0, 3.0, 4.0, 5.0}:
-            print(
-                f"WARNING: stedelijkheid should be a 1-5 class, got values like "
-                f"{sorted(vals)[:3]}. Wrong measure matched.",
-                file=sys.stderr,
-            )
-
-    if "inwoners" in df:
-        if (df["inwoners"].dropna() % 1 != 0).any():
-            print(
-                "WARNING: inwoners has fractional values — this is the period "
-                "average, not the 1-January count.",
-                file=sys.stderr,
-            )
-
-        df["grootteklasse"] = pd.cut(
-            df["inwoners"],
-            bins=[0, 20_000, 50_000, 100_000, 250_000, float("inf")],
-            labels=["<20k", "20-50k", "50-100k", "100-250k", ">250k"],
-        )
-
-    df = df.sort_values("gemeente").reset_index(drop=True)
-
-    n = len(df)
-    print(f"{n} municipalities, peiljaar {df['peiljaar'].iloc[0]}", file=sys.stderr)
-    if n != 342:
-        print(
-            f"WARNING: expected 342 for the 2023-2026 indeling, got {n}. "
-            "Check the reference year — herindelingen take effect on 1 January.",
-            file=sys.stderr,
-        )
-
-    empty = [c for c in df.columns if df[c].isna().all()]
+    empty = [c for c in out.columns if out[c].isna().all()]
     if empty:
         print(f"WARNING: columns entirely null: {empty}", file=sys.stderr)
 
-    return df
+    filled = out.notna().mean().sort_values()
+    thin = filled[filled < 0.5]
+    if len(thin):
+        print(f"note: sparse (CBS suppresses small areas): "
+              f"{ {k: f'{v:.0%}' for k, v in thin.items()} }", file=sys.stderr)
+
+    return out
 
 
-def write_jsonl(df: pd.DataFrame, path: str | Path) -> None:
-    """One JSON object per line. NaN -> null, Categorical -> str."""
-    path = Path(path)
+def write_jsonl(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-
-    out = df.copy()
-    for col in out.select_dtypes(include="category").columns:
-        out[col] = out[col].astype("string")
-    out = out.astype(object).where(pd.notnull(out), None)
-
-    with open(path, "w", encoding="utf-8") as fh:
+    out = df.astype(object).where(pd.notnull(df), None)
+    with path.open("w", encoding="utf-8") as fh:
         for record in out.to_dict(orient="records"):
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-    print(f"wrote {len(out)} records to {path}", file=sys.stderr)
-    for record in out.head(3).to_dict(orient="records"):
-        print(json.dumps(record, ensure_ascii=False))
+    print(f"wrote {len(out):,} records to {path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
 
     data_path = Path(__file__).parents[1] / "data"
 
-    df = build(year=None, gebieden_table=None)
-    write_jsonl(df, path=data_path / "gementee_data.jsonl")
+    df = build(KWB, gemeente_path=data_path / "gemeente_data.jsonl")
+
+    write_jsonl(df, data_path / "buurt_data.jsonl")
+

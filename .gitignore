@@ -233,6 +233,7 @@ __marimo__/
 
 .idea
 
-secrets/
+secrets/*
+!secrets/*.example
 !README.md
 

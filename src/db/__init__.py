@@ -1,7 +1,7 @@
-from src.db.duck_client import DuckClient, clean, parse_response
+from src.db.db_client import DBClient, clean, parse_response
 
 __all__ = [
-    "DuckClient",
+    "DBClient",
     "clean",
     "parse_response",
 ]

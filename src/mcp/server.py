@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 import pandas as pd
 from mcp.server import MCPServer
-from src.db.duck_client import DuckClient
+from src.db.db_client import DBClient
 
 
 # DB_PATH = Path(os.environ.get(
@@ -30,7 +30,7 @@ DB_PATH = "C:\\Users\\mavritsa\\repositories\\heat-transition-ai\\data\\nplw.duc
 
 MAX_ROWS = int(os.environ.get("MCP_MAX_ROWS", "200"))
 
-db = DuckClient(DB_PATH, read_only=True)
+db = DBClient(DB_PATH, read_only=True)
 
 INSTRUCTIONS = """
 This server answers questions about Dutch municipal heat-transition programmes

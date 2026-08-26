@@ -1,5 +1,7 @@
 # Warmteprogramma extraction questions.
 #
+# origin: nplw
+#
 # type: split  = {woningen, utiliteit} counts
 #       count  = single integer
 #       bool   = true / false
@@ -22,32 +24,38 @@
 
 - id: doc_status
   type: enum
+  origin: nplw
   values: [vastgesteld, ontwerp, concept, onbekend]
   nl: Wat is de status van dit programma?
   en: What is the adoption status of this programme?
 
 - id: doc_datum
   type: text
+  origin: nplw
   nl: Wat is de vaststellings- of publicatiedatum?
   en: Adoption or publication date?
 
 - id: doc_periode
   type: text
+  origin: nplw
   nl: Op welke periode heeft het programma betrekking (bv. 2026-2035)?
   en: What period does the programme cover?
 
 - id: adviesbureau
   type: text
+  origin: nplw
   nl: Welk adviesbureau is genoemd in de colofon of als opsteller?
   en: Which consultancy is named in the colophon or as author?
 
 - id: samenwerkingsverband
   type: text
+  origin: nplw
   nl: Is het programma opgesteld in een regionaal of ambtelijk samenwerkingsverband?
   en: Was it produced within a regional or shared-services partnership?
 
 - id: vervangt_tvw
   type: bool
+  origin: nplw
   nl: Vervangt dit programma een eerdere Transitievisie Warmte, en welke?
   en: Does this supersede an earlier Transitievisie Warmte, and which?
 
@@ -57,31 +65,37 @@
 
 - id: gebouwen_totaal
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen telt de gemeente in totaal?
   en: Total number of buildings in the municipality?
 
 - id: niet_aardgasvrij
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen zijn nog niet aardgasvrij?
   en: How many buildings are not yet natural-gas-free?
 
 - id: gepland_collectief
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen zijn gepland voor een collectieve warmte-oplossing?
   en: How many buildings are planned for a collective heating solution?
 
 - id: gepland_individueel
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen zijn gepland voor een individuele oplossing (all-electric)?
   en: How many buildings are planned for an individual solution (all-electric)?
 
 - id: isolatieopgave
   type: split
+  origin: nplw
   nl: Voor hoeveel gebouwen geldt een isolatie-opgave?
   en: How many buildings have an insulation requirement?
 
 - id: isolatie_standaard
   type: text
+  origin: nplw
   nl: Welke isolatiestandaard of streefwaarde wordt gehanteerd?
   en: Which insulation standard or target value is applied?
 
@@ -95,61 +109,73 @@
 
 - id: warmtenet_ht_mt_status
   type: status
+  origin: nplw
   nl: Wordt een warmtenet op hoge/middentemperatuur (HT/MT) gepland, onderzocht of uitgesloten?
   en: Is an HT/MT heat network planned, under investigation, or excluded?
 
 - id: warmtenet_ht_mt_aantal
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen komen op een warmtenet op hoge/middentemperatuur?
   en: How many buildings connect to an HT/MT heat network?
 
 - id: warmtenet_lt_zlt_status
   type: status
+  origin: nplw
   nl: Wordt een warmtenet op lage/zeer lage temperatuur (LT/ZLT) gepland, onderzocht of uitgesloten?
   en: Is an LT/VLT heat network planned, under investigation, or excluded?
 
 - id: warmtenet_lt_zlt_aantal
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen komen op een warmtenet op lage/zeer lage temperatuur?
   en: How many buildings connect to an LT/VLT heat network?
 
 - id: geothermie_status
   type: status
+  origin: nplw
   nl: Wordt geothermie gepland, onderzocht of uitgesloten?
   en: Is geothermal energy planned, under investigation, or excluded?
 
 - id: geothermie_aantal
   type: split
+  origin: nplw
   nl: Hoeveel gebouwen worden voorzien via geothermie?
   en: How many buildings are supplied by geothermal energy?
 
 - id: aquathermie_status
   type: status
+  origin: nplw
   nl: Wordt aquathermie (TEO/TEA/TED) gepland, onderzocht of uitgesloten?
   en: Is aquathermal energy planned, under investigation, or excluded?
 
 - id: restwarmte_status
   type: status
+  origin: nplw
   nl: Wordt restwarmte (industrie, datacenter) als bron genoemd?
   en: Is waste heat named as a source?
 
 - id: groen_gas_status
   type: status
+  origin: nplw
   nl: Wordt groen gas gepland, onderzocht of uitgesloten?
   en: Is green gas planned, under investigation, or excluded?
 
 - id: waterstof_status
   type: status
+  origin: nplw
   nl: Wordt waterstof gepland, onderzocht of uitgesloten?
   en: Is hydrogen planned, under investigation, or excluded?
 
 - id: hybride_warmtepomp
   type: status
+  origin: nplw
   nl: Wordt de hybride warmtepomp als (tussen)oplossing genoemd?
   en: Is the hybrid heat pump named as a (transitional) solution?
 
 - id: gasnet_behoud
   type: text
+  origin: nplw
   nl: Wordt uitgesproken dat het gasnet (deels) in stand blijft, en tot wanneer?
   en: Is it stated that the gas network (partly) remains, and until when?
 
@@ -159,6 +185,7 @@
 
 - id: warmtenet_afwijzing_reden
   type: enum
+  origin: nplw
   values:
     - geen_bron_beschikbaar
     - businesscase_negatief
@@ -172,11 +199,13 @@
 
 - id: bron_beschikbaarheid
   type: text
+  origin: nplw
   nl: Welke warmtebronnen zijn in of nabij de gemeente beschikbaar volgens het programma?
   en: Which heat sources does the programme identify as available in or near the municipality?
 
 - id: knelpunten
   type: enum
+  origin: nplw
   values:
     - capaciteit_personeel
     - financiering
@@ -191,6 +220,7 @@
 
 - id: ondersteuningsbehoefte
   type: text
+  origin: nplw
   nl: Welke ondersteuning vraagt de gemeente van Rijk, provincie of NPLW?
   en: What support does the municipality request from national, provincial or NPLW level?
 
@@ -200,26 +230,31 @@
 
 - id: startgebieden_aantal
   type: count
+  origin: nplw
   nl: Hoeveel startgebieden of eerste uitvoeringsgebieden zijn aangewezen?
   en: How many start areas or first implementation areas are designated?
 
 - id: eerste_gebied_jaar
   type: text
+  origin: nplw
   nl: In welk jaar gaat het eerste gebied van het aardgas af?
   en: In which year does the first area go off natural gas?
 
 - id: doeljaar_2030
   type: text
+  origin: nplw
   nl: Wat is de doelstelling voor 2030 (aantal woningen, gebieden of percentage)?
   en: What is the 2030 target (dwellings, areas or percentage)?
 
 - id: doeljaar_2050
   type: bool
+  origin: nplw
   nl: Wordt 2050 als eindjaar voor aardgasvrij bevestigd of afgezwakt?
   en: Is 2050 confirmed or qualified as the end date for gas-free?
 
 - id: uitvoeringsjaren_per_gebied
   type: bool
+  origin: nplw
   nl: Zijn per gebied concrete uitvoeringsjaren of -periodes opgenomen?
   en: Are concrete implementation years given per area?
 
@@ -229,46 +264,55 @@
 
 - id: gebiedsindeling
   type: count
+  origin: nplw
   nl: Is er een gebiedsindeling gemaakt, en zo ja, hoeveel gebieden?
   en: Is there a zoning of the municipality, and if so, how many zones?
 
 - id: gebiedsindeling_categorieen
   type: text
+  origin: nplw
   nl: Welke categorieën gebruikt de gebiedsindeling (bv. kansrijk, verkenningsgebied)?
   en: Which categories does the zoning use?
 
 - id: aanwijsbevoegdheid
   type: count
+  origin: nplw
   nl: In hoeveel gebieden wordt de aanwijsbevoegdheid ingezet of voorgenomen?
   en: In how many zones are designation powers used or planned?
 
 - id: aanwijsbevoegdheid_toelichting
   type: text
+  origin: nplw
   nl: Hoe motiveert de gemeente het wel of niet inzetten van de aanwijsbevoegdheid?
   en: How does the municipality justify using or not using designation powers?
 
 - id: publiek_warmtebedrijf
   type: text
+  origin: nplw
   nl: Is er een publiek warmtebedrijf, bestaand of in oprichting?
   en: Is there a public heat utility, existing or being established?
 
 - id: warmtegemeenschappen
   type: count
+  origin: nplw
   nl: Zijn er lokale warmtegemeenschappen, en zo ja, hoeveel?
   en: Are there local heat communities, and if so, how many?
 
 - id: woningcorporaties
   type: text
+  origin: nplw
   nl: Welke rol krijgen woningcorporaties, en zijn er prestatieafspraken genoemd?
   en: What role do housing corporations play, and are performance agreements named?
 
 - id: netbeheerder_afstemming
   type: text
+  origin: nplw
   nl: Is afstemming met de netbeheerder beschreven, en wordt netcongestie genoemd?
   en: Is coordination with the grid operator described, and is congestion named?
 
 - id: monitoring
   type: bool
+  origin: nplw
   nl: Zijn monitoring- of evaluatieafspraken opgenomen, en met welke frequentie?
   en: Are monitoring or evaluation arrangements included, and at what interval?
 
@@ -278,16 +322,19 @@
 
 - id: mer_beoordeling
   type: bool
+  origin: nplw
   nl: Is er een m.e.r.-beoordeling als eerste toets uitgevoerd?
   en: Was an initial SEA screening carried out?
 
 - id: plan_mer_plicht
   type: bool
+  origin: nplw
   nl: Is er sprake van een plan-m.e.r.-plicht?
   en: Is a formal Plan-SEA mandatory?
 
 - id: plan_mer_opgesteld
   type: bool
+  origin: nplw
   nl: Is er een plan-MER opgesteld?
   en: Has a Plan-SEA report been prepared?
 
@@ -297,25 +344,30 @@
 
 - id: uitvoeringsparagraaf
   type: bool
+  origin: nplw
   nl: Is er een uitvoeringsparagraaf opgenomen of als apart document bijgevoegd?
   en: Is an implementation section included or attached separately?
 
 - id: fte_raming
   type: text
+  origin: nplw
   nl: Is er een raming van benodigde FTE's, en wordt een knelpunt benoemd?
   en: Is there an FTE estimate, and is a bottleneck flagged?
 
 - id: investeringskosten
   type: text
+  origin: nplw
   nl: Is er een raming van de benodigde investeringskosten?
   en: Is there an estimate of required investment costs?
 
 - id: financiele_dekking
   type: text
+  origin: nplw
   nl: Is de wijze van financiële dekking van deze middelen vermeld?
   en: Is the method of financing these resources described?
 
 - id: participatie
   type: text
+  origin: nplw
   nl: Hoe is participatie van bewoners en bedrijven ingevuld?
   en: How was participation of residents and businesses implemented?
