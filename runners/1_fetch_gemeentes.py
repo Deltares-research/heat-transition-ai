@@ -273,7 +273,8 @@ def write_jsonl(df: pd.DataFrame, path: Path) -> None:
 
 if __name__ == "__main__":
 
-    data_path = Path(__file__).parents[1] / "data"
+    data_path = Path(__file__).parents[1] / "data/cbs"
+    data_path.mkdir(parents=True, exist_ok=True)
 
     df = build(KWB, gemeente_path=data_path / "gemeente_data.jsonl")
 
