@@ -1,0 +1,200 @@
+concepts:
+- id: heat_solution
+  label: Heat solution
+  subtypes:
+  - collective_solution
+  - individual_solution
+- id: collective_solution
+  label: Collective heating solution
+  subtypes:
+  - high_temp_heat_network
+  - low_temp_heat_network
+  - geothermal
+  - aquathermal
+  - waste_heat
+  - green_gas
+  note: Requires a heat source and typically a heat utility
+- id: individual_solution
+  label: Individual heating solution
+  subtypes:
+  - all_electric
+  - hybrid_heat_pump
+  - hydrogen
+  note: Decision made at household level, not by the municipality
+- id: high_temp_heat_network
+  label: High/medium temperature heat network (HT/MT)
+- id: low_temp_heat_network
+  label: Low/very low temperature heat network (LT/VLT)
+- id: geothermal
+  label: Geothermal energy
+- id: aquathermal
+  label: Aquathermal energy (surface water, waste water, drinking water)
+- id: waste_heat
+  label: Waste heat (industry, data centres)
+- id: green_gas
+  label: Green gas
+- id: hydrogen
+  label: Hydrogen
+- id: all_electric
+  label: All-electric (individual heat pump)
+- id: hybrid_heat_pump
+  label: Hybrid heat pump
+  note: Transitional solution; gas network remains necessary
+- id: heat_source
+  label: Heat source
+  subtypes:
+  - geothermal
+  - aquathermal
+  - waste_heat_industry
+  - waste_heat_datacenter
+  - green_gas
+  note: Availability is the primary determinant of whether a collective solution is
+    viable
+- id: waste_heat_industry
+  label: Industrial waste heat
+- id: waste_heat_datacenter
+  label: Data centre waste heat
+- id: instrument
+  label: Municipal instrument
+  subtypes:
+  - designation_authority
+  - public_heat_utility
+  - heat_community
+  - district_implementation_plan
+  note: Use of instruments is a proxy for ambition level
+- id: designation_authority
+  label: Designation authority
+  requires: area_zoning
+  note: Allows the municipality to compel residents to switch heat source
+- id: public_heat_utility
+  label: Public heat utility
+  note: Organisational capacity indicator; often formed through a regional partnership
+- id: heat_community
+  label: Local heat community
+  note: Resident-led collective; different governance from a municipal heat utility
+- id: district_implementation_plan
+  label: District implementation plan
+  note: Operational follow-up to the heat programme; required before designation authority
+    can be exercised
+- id: programme_process
+  label: Programme process
+  subtypes:
+  - area_zoning
+  - participation
+  - environmental_assessment
+  - monitoring
+- id: area_zoning
+  label: Area zoning
+  note: 'Categorises neighbourhoods by preferred solution and urgency. Prerequisite
+    for designation authority. Common categories: priority area, exploration area,
+    no-regret measure area'
+- id: participation
+  label: Resident and business participation
+- id: environmental_assessment
+  label: Environmental impact assessment (SEA)
+  subtypes:
+  - sea_screening
+  - full_sea
+- id: sea_screening
+  label: Initial SEA screening
+- id: full_sea
+  label: Full Plan-level SEA
+- id: monitoring
+  label: Monitoring and evaluation arrangements
+- id: feasibility
+  label: Implementation feasibility
+  indicators:
+  - fte_estimate
+  - investment_costs
+  - financial_coverage
+  - implementation_paragraph
+  note: Structurally absent in most programmes; only 9 of 40 programmes in the pilot
+    corpus quantify FTE
+- id: fte_estimate
+  label: FTE staffing estimate
+- id: investment_costs
+  label: Investment cost estimate
+- id: financial_coverage
+  label: Financial coverage and funding arrangements
+- id: implementation_paragraph
+  label: Implementation paragraph
+  note: Formal section describing execution; its presence is a binary indicator of
+    programme maturity
+- id: barrier
+  label: Barrier to implementation
+  subtypes:
+  - barrier_capacity
+  - barrier_funding
+  - barrier_grid_congestion
+  - barrier_heat_source
+  - barrier_public_support
+  - barrier_regulation
+- id: barrier_capacity
+  label: Staffing and organisational capacity barrier
+- id: barrier_funding
+  label: Funding barrier
+- id: barrier_grid_congestion
+  label: Grid congestion barrier
+  note: Electrical grid saturation blocks all-electric rollout
+- id: barrier_heat_source
+  label: No viable heat source available
+- id: barrier_public_support
+  label: Insufficient public or political support
+- id: barrier_regulation
+  label: Regulatory uncertainty
+- id: rejection_reason
+  label: Reason for rejecting collective solutions
+  subtypes:
+  - rejection_no_source
+  - rejection_business_case
+  - rejection_density
+  - rejection_grid
+  - rejection_political
+  - rejection_not_investigated
+- id: rejection_no_source
+  label: No heat source available
+- id: rejection_business_case
+  label: Negative business case (source exists but unviable)
+- id: rejection_density
+  label: Building density too low
+- id: rejection_grid
+  label: Grid capacity insufficient
+- id: rejection_political
+  label: Political or governance choice
+- id: rejection_not_investigated
+  label: Not investigated
+- id: planning
+  label: Timeline and targets
+  subtypes:
+  - start_area
+  - target_2030
+  - target_2050
+  note: Programmes vary widely in commitment level; the modality distinction (committed
+    vs exploring) is critical
+- id: start_area
+  label: First implementation area
+- id: target_2030
+  label: 2030 interim target
+- id: target_2050
+  label: 2050 gas-free end target
+- id: stakeholder
+  label: Stakeholder
+  subtypes:
+  - housing_corporation
+  - grid_operator
+  - consultancy
+  - regional_partnership
+- id: housing_corporation
+  label: Housing corporation
+  note: Key actor for rental housing stock; performance agreements are a common instrument
+- id: grid_operator
+  label: Grid operator
+  note: Coordination required for both heat networks and all-electric rollout; congestion
+    is a shared bottleneck
+- id: consultancy
+  label: Advisory consultancy
+  note: Enqualia found consultancy is a hidden variable predicting solution choice
+    and template similarity
+- id: regional_partnership
+  label: Regional or administrative partnership
+  note: Shared programmes complicate independent municipality counts

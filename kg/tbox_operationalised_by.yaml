@@ -1,0 +1,63 @@
+operationalised_by:
+  designation_authority:
+  - aanwijsbevoegdheid
+  - aanwijsbevoegdheid_toelichting
+  public_heat_utility:
+  - publiek_warmtebedrijf
+  heat_community:
+  - warmtegemeenschappen
+  high_temp_heat_network:
+  - warmtenet_ht_mt_status
+  - warmtenet_ht_mt_aantal
+  low_temp_heat_network:
+  - warmtenet_lt_zlt_status
+  - warmtenet_lt_zlt_aantal
+  geothermal:
+  - geothermie_status
+  - geothermie_aantal
+  aquathermal:
+  - aquathermie_status
+  waste_heat:
+  - restwarmte_status
+  green_gas:
+  - groen_gas_status
+  hydrogen:
+  - waterstof_status
+  hybrid_heat_pump:
+  - hybride_warmtepomp
+  area_zoning:
+  - gebiedsindeling
+  - gebiedsindeling_categorieen
+  feasibility:
+  - fte_raming
+  - investeringskosten
+  - financiele_dekking
+  - uitvoeringsparagraaf
+  barrier:
+  - knelpunten
+  rejection_reason:
+  - warmtenet_afwijzing_reden
+  planning:
+  - startgebieden_aantal
+  - eerste_gebied_jaar
+  - doeljaar_2030
+  - doeljaar_2050
+  participation:
+  - participatie
+  heat_source:
+  - bron_beschikbaarheid
+  housing_corporation:
+  - woningcorporaties
+  grid_operator:
+  - netbeheerder_afstemming
+  monitoring:
+  - monitoring
+  environmental_assessment:
+  - mer_beoordeling
+  - plan_mer_plicht
+  - plan_mer_opgesteld
+  sea_screening:
+  - mer_beoordeling
+  full_sea:
+  - plan_mer_plicht
+  - plan_mer_opgesteld
