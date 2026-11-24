@@ -7,6 +7,7 @@ dependencies = [
     "azure-storage-blob>=12.31.1",
     "bs4>=0.0.2",
     "duckdb>=1.5.5",
+    "fastapi>=0.121.0",
     "jinja2>=3.1.6",
     "litellm>=1.94.0",
     "markdown>=3.11.3",
@@ -19,6 +20,22 @@ dependencies = [
     "pymupdf4llm>=1.28.0",
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
+    "rich>=15.0.0",
     "tqdm>=4.70.0",
     "trafilatura>=2.1.0",
+    "uvicorn[standard]>=0.38.0",
 ]
+
+[project.scripts]
+heat-cli = "src.cli.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# The project's code lives under src/ and every internal import is already
+# written as `from src.xxx import ...`, so packaging src/ itself as the
+# top-level module (rather than renaming to heat_transition_ai) means zero
+# import changes anywhere in the codebase.
+packages = ["src"]

@@ -30,7 +30,10 @@ from psycopg2 import extensions, extras
 from src.console import safe_console
 from src.db.utils import clean, parse_response
 
-__all__ = ["DBClient", "clean", "parse_response", "resolve_dsn", "load_registry"]
+__all__ = [
+    "DBClient", "clean", "parse_response", "resolve_dsn", "load_registry",
+    "table_counts",
+]
 
 
 ROOT = Path(__file__).parents[2]
@@ -378,6 +381,34 @@ class DBClient:
         with self.conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
             cur.execute(query, params)
             return cur.fetchone()
+
+
+# ──────────────────────────────────────────────────────────────
+# Reporting
+# ──────────────────────────────────────────────────────────────
+
+def table_counts(client: DBClient, tables: Sequence[str]) -> dict[str, int]:
+    """Row count per table; 0 for a table that does not exist yet.
+
+    Used by ingestion steps to report their before/after effect without
+    assuming every table's schema has already landed. A pipeline step and
+    the rich CLI both call this on the same client, then render the result
+    their own way — plain text or a Rich table.
+    """
+    present = {
+        row["table_name"]
+        for row in client.fetch(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public'"
+        )
+    }
+    counts: dict[str, int] = {}
+    for table in tables:
+        counts[table] = (
+            client.fetch_one(f"SELECT count(*) AS n FROM {table}")["n"]
+            if table in present else 0
+        )
+    return counts
 
 
 # ──────────────────────────────────────────────────────────────

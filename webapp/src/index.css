@@ -1,0 +1,33 @@
+:root {
+  --green-50: #eafcf1;
+  --green-100: #c8f3da;
+  --green-200: #8fe3b6;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #0d7a38;
+  --text: #0f2818;
+  --text-dim: #5d7868;
+  --bg: var(--green-50);
+  --border: var(--green-200);
+  --display: 'Baloo 2', system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}

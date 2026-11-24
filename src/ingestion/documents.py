@@ -11,7 +11,9 @@ skipped unless `force` is set.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -20,10 +22,40 @@ from src.db.db_client import DBClient
 from src.embedding.embedder import Embedder
 from src.text.processing import Chunk, chunk_markdown, pdf_to_markdown, translate_markdown
 
-__all__ = ["DocumentResult", "IngestReport", "ingest_documents", "list_documents"]
+__all__ = [
+    "DEFAULT_LOG_PATH",
+    "DOCUMENT_TABLES",
+    "STAGE_LABELS",
+    "DocumentPlan",
+    "DocumentResult",
+    "IngestReport",
+    "find_id_clashes",
+    "ingest_documents",
+    "list_documents",
+    "log_result",
+    "plan_document_ingest",
+]
 
 SUPPORTED = {".pdf", ".md"}
 LANGUAGES = ("nl", "en")
+
+DOCUMENT_TABLES = ["report_nodes", "chunk_nodes", "chunk_report_edges"]
+
+ROOT = Path(__file__).parents[2]
+DEFAULT_LOG_PATH = ROOT / "logs" / "ingest_documents.jsonl"
+
+# Human-readable label per stage key, for anything rendering ingest_documents'
+# on_progress callback — the plain pipeline step and the Rich CLI both use
+# these, styled differently.
+STAGE_LABELS = {
+    "fetch": "fetching",
+    "translate": "translating",
+    "chunk": "chunking",
+    "embed": "embedding",
+    "write": "writing",
+    "skipped": "skipped",
+    "done": "done",
+}
 
 
 def doc_id_for(blob_name: str) -> str:
@@ -66,6 +98,29 @@ class IngestReport:
         return sum(r.chunks for r in self.results)
 
 
+def log_result(result: DocumentResult, log_path: Path | str = DEFAULT_LOG_PATH) -> None:
+    """Append one line recording a document's outcome to a local audit log.
+
+    One JSON object per line: doc_id, blob, the UTC timestamp the document was
+    processed, a status (success/failed/skipped), chunk count and error if
+    any. Appending per document (rather than batching) keeps the log
+    consistent with an interrupted run, which also stops partway through.
+    """
+    log_path = Path(log_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    status = "skipped" if result.skipped else ("failed" if result.error else "success")
+    record = {
+        "doc_id": result.doc_id,
+        "blob": result.blob,
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "status": status,
+        "chunks": result.chunks,
+        "error": result.error,
+    }
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 def list_documents(store: BlobStore, prefix: str = "") -> list[str]:
     """Supported document blobs under a prefix, in a stable order."""
     return sorted(
@@ -76,6 +131,61 @@ def list_documents(store: BlobStore, prefix: str = "") -> list[str]:
 
 def existing_doc_ids(client: DBClient) -> set[str]:
     return {row["doc_id"] for row in client.fetch("SELECT doc_id FROM report_nodes")}
+
+
+def find_id_clashes(blobs: Iterable[str]) -> list[str]:
+    """Human-readable descriptions of blob names that collide on doc_id.
+
+    Distinct documents share a doc_id if their filenames collide, which would
+    silently overwrite one with the other — callers should refuse to proceed
+    rather than guess which one wins.
+    """
+    seen: dict[str, str] = {}
+    clashes: list[str] = []
+    for name in blobs:
+        doc_id = doc_id_for(name)
+        if doc_id in seen:
+            clashes.append(f"{seen[doc_id]} and {name} both map to '{doc_id}'")
+        else:
+            seen[doc_id] = name
+    return clashes
+
+
+@dataclass
+class DocumentPlan:
+    """What a document-ingest run would do, before any writing happens."""
+
+    blobs: list[str]
+    known_ids: set[str]
+    todo: list[str]
+    clashes: list[str]
+
+    @property
+    def in_db(self) -> int:
+        return sum(1 for b in self.blobs if doc_id_for(b) in self.known_ids)
+
+
+def plan_document_ingest(
+    client: DBClient,
+    store: BlobStore,
+    prefix: str = "",
+    force: bool = False,
+    limit: int = 0,
+    blobs: list[str] | None = None,
+) -> DocumentPlan:
+    """List blobs, flag doc_id clashes, and work out what still needs ingesting.
+
+    Pass `blobs` if the caller already listed the container (e.g. to check for
+    clashes before opening a database connection) — avoids listing twice.
+    """
+    if blobs is None:
+        blobs = list_documents(store, prefix)
+    clashes = find_id_clashes(blobs)
+    known = set() if force else existing_doc_ids(client)
+    todo = [b for b in blobs if force or doc_id_for(b) not in known]
+    if limit:
+        todo = todo[:limit]
+    return DocumentPlan(blobs=blobs, known_ids=known, todo=todo, clashes=clashes)
 
 
 def _load_markdown(store: BlobStore, blob_name: str) -> str:
@@ -145,14 +255,24 @@ def ingest_documents(
     translate: bool = True,
     force: bool = False,
     on_progress: Callable[[str, str], None] | None = None,
+    known_ids: set[str] | None = None,
+    log_path: Path | str = DEFAULT_LOG_PATH,
 ) -> IngestReport:
     """Process every blob, committing each document independently.
 
     `on_progress(doc_id, stage)` is called as each document moves through
-    fetch, translate, chunk, embed and write.
+    fetch, translate, chunk, embed and write. Pass `known_ids` (e.g. from a
+    `DocumentPlan`) to skip re-querying which documents already exist. Every
+    document, including skipped ones, gets one line in `log_path` via
+    `log_result`.
     """
     report = IngestReport()
-    known = set() if force else existing_doc_ids(client)
+    if force:
+        known: set[str] = set()
+    elif known_ids is not None:
+        known = known_ids
+    else:
+        known = existing_doc_ids(client)
 
     def progress(doc_id: str, stage: str) -> None:
         if on_progress:
@@ -166,6 +286,7 @@ def ingest_documents(
             result.skipped = True
             report.results.append(result)
             progress(doc_id, "skipped")
+            log_result(result, log_path)
             continue
 
         try:
@@ -203,5 +324,6 @@ def ingest_documents(
 
         report.results.append(result)
         progress(doc_id, "done")
+        log_result(result, log_path)
 
     return report

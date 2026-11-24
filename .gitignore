@@ -237,6 +237,11 @@ secrets/*
 !secrets/*.example
 !README.md
 
+!src/agent/config/*.json
+!webapp/package.json
+!webapp/package-lock.json
+!webapp/public/logos/*.png
+
 data/*
 !data/.gitkeep
 

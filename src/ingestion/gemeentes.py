@@ -1,7 +1,35 @@
-from pathlib import Path
+from __future__ import annotations
+
 import json
-from src.db.db_client import DBClient
 import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+from src.db.db_client import DBClient, table_counts
+from src.paths import require_file
+
+ROOT = Path(__file__).parents[2]
+DEFAULT_BUURT_PATH = ROOT / "data" / "cbs" / "buurt_data.jsonl"
+DEFAULT_GEMEENTE_PATH = ROOT / "data" / "cbs" / "gemeente_data.jsonl"
+
+GEMEENTE_TABLES = [
+    "gemeente_nodes",
+    "wijk_nodes",
+    "buurt_nodes",
+    "wijk_gemeente_edges",
+    "buurt_wijk_edges",
+]
+
+__all__ = [
+    "COLUMNS",
+    "DEFAULT_BUURT_PATH",
+    "DEFAULT_GEMEENTE_PATH",
+    "GEMEENTE_TABLES",
+    "GemeenteIngestResult",
+    "ingest_gemeentes",
+    "run_gemeente_ingest",
+]
 
 
 COLUMNS = {
@@ -43,7 +71,15 @@ def ingest_gemeentes(
     client: DBClient,
     buurt_path: Path | str,
     gemeente_path: Path | str | None = None,
+    on_stage: Callable[[str, int | None], None] | None = None,
 ) -> None:
+    """Load buurt/wijk/gemeente nodes and edges, then refresh the aggregates.
+
+    `on_stage(label, count)` fires once per load phase: `count` is the row
+    count for a batch, or None for a bare status line. With no callback the
+    same information is printed — pass one (e.g. to drive a Rich progress
+    bar) to take over how it's shown.
+    """
 
     if not isinstance(buurt_path, Path):
         buurt_path = Path(buurt_path)
@@ -116,13 +152,23 @@ def ingest_gemeentes(
         ("wijk-gemeente edges", "insert_wijk_gemeente_edge", list(wijk_edges.values())),
     ]
 
-    print("Ingesting CBS data")
+    def stage(label: str, n: int | None = None) -> None:
+        if on_stage:
+            on_stage(label, n)
+        elif n is None:
+            print(f"  {label}", flush=True)
+        else:
+            print(f"  {label:<22} {n:>8,}", flush=True)
+
+    if not on_stage:
+        print("Ingesting CBS data")
+
     with client.transaction():
         for label, statement, rows in stages:
-            print(f"  {label:<22} {len(rows):>8,}", flush=True)
+            stage(label, len(rows))
             client.insert_many(client.inserts[statement]["query"], rows)
 
-        print("  pruning stale nodes and refreshing aggregates", flush=True)
+        stage("pruning stale nodes and refreshing aggregates")
 
         client.insert(
             client.inserts["delete_stale_buurt_nodes"]["query"],
@@ -137,6 +183,47 @@ def ingest_gemeentes(
             (sorted(gemeente_codes),),
         )
         client.insert(client.inserts["refresh_cbs_aggregates"]["query"])
+
+
+@dataclass
+class GemeenteIngestResult:
+    """Outcome of one gemeente-ingest run: inputs used, and the row-count delta."""
+
+    buurt_path: Path
+    gemeente_path: Path
+    before: dict[str, int]
+    after: dict[str, int]
+
+    @property
+    def loaded(self) -> bool:
+        return self.after.get("buurt_nodes", 0) > 0
+
+
+def run_gemeente_ingest(
+    client: DBClient,
+    buurt_path: Path | str = DEFAULT_BUURT_PATH,
+    gemeente_path: Path | str = DEFAULT_GEMEENTE_PATH,
+    on_stage: Callable[[str, int | None], None] | None = None,
+) -> GemeenteIngestResult:
+    """Resolve inputs, ingest, and report the row-count effect per table.
+
+    The orchestration a caller needs regardless of presentation: validate the
+    input files exist, snapshot row counts, ingest, snapshot again. A plain
+    script and the Rich CLI both call this and render the result their own way.
+    """
+    buurt_path = require_file(buurt_path)
+    gemeente_path = require_file(gemeente_path)
+
+    before = table_counts(client, GEMEENTE_TABLES)
+    ingest_gemeentes(client, buurt_path, gemeente_path, on_stage=on_stage)
+    after = table_counts(client, GEMEENTE_TABLES)
+
+    return GemeenteIngestResult(
+        buurt_path=buurt_path,
+        gemeente_path=gemeente_path,
+        before=before,
+        after=after,
+    )
 
 
 if __name__ == "__main__":
