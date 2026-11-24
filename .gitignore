@@ -237,3 +237,6 @@ secrets/*
 !secrets/*.example
 !README.md
 
+data/*
+!data/.gitkeep
+

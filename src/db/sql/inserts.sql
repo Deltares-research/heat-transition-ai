@@ -85,12 +85,13 @@ ON CONFLICT (doc_id) DO UPDATE SET
 
 -- name: insert_chunk_node
 INSERT INTO chunk_nodes (
-    id, chunk_index, heading_path, text, char_start, char_end, n_chars,
-    embedding, embedding_dimensions
+    id, chunk_index, language, heading_path, text, char_start, char_end,
+    n_chars, embedding, embedding_dimensions
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (id) DO UPDATE SET
     chunk_index = EXCLUDED.chunk_index,
+    language = EXCLUDED.language,
     heading_path = EXCLUDED.heading_path,
     text = EXCLUDED.text,
     char_start = EXCLUDED.char_start,
@@ -134,6 +135,12 @@ ON CONFLICT (chunk_id, gemeente_code) DO NOTHING;
 INSERT INTO answer_chunk_edges (answer_id, chunk_id)
 VALUES (%s, %s)
 ON CONFLICT (answer_id) DO UPDATE SET chunk_id = EXCLUDED.chunk_id;
+
+-- name: delete_report_chunks
+-- Removes a document's chunks so it can be reprocessed from scratch. The
+-- edges to reports, answers and areas fall away by cascade.
+DELETE FROM chunk_nodes
+WHERE id IN (SELECT chunk_id FROM chunk_report_edges WHERE doc_id = %s);
 
 -- name: insert_chunk_area_edge
 INSERT INTO chunk_area_edges (chunk_id, area_id)

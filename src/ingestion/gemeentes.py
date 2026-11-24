@@ -2,7 +2,6 @@ from pathlib import Path
 import json
 from src.db.db_client import DBClient
 import math
-from tqdm import tqdm
 
 
 COLUMNS = {
@@ -81,36 +80,49 @@ def ingest_gemeentes(
         row["gemeentecode"]: row.get("peiljaar") for row in gemeentes
     }
 
-    try:
-        for row in tqdm(gemeentes, desc="Ingesting gemeente references"):
-            values = (
-                row["gemeente"], row["gemeentecode"],
-                row.get("DimensionGroupId"), row.get("peiljaar"),
-            )
-            client.insert(client.inserts["insert_gemeente_reference"]["query"], values)
+    for row in buurts:
+        row.setdefault("peiljaar", peiljaar_by_code.get(row["gemeentecode"]))
 
-        for row in tqdm(buurts, desc="Ingesting nodes"):
-            row.setdefault("peiljaar", peiljaar_by_code.get(row["gemeentecode"]))
-            values = tuple(clean(row.get(src), col) for col, src in COLUMNS.items())
-            client.insert(client.inserts["insert_buurt_node"]["query"], values)
-            client.insert(
-                client.inserts["insert_wijk_node"]["query"],
-                (row["wijk_naam"], row["wijkcode"]),
-            )
-            client.insert(
-                client.inserts["insert_gemeente_node"]["query"],
-                (row["gemeente_naam"], row["gemeentecode"], row.get("province")),
-            )
+    # The buurt file repeats each wijk and gemeente once per buurt. Upserting
+    # the same key thousands of times is pure round-trip latency, so collapse
+    # to one row per code first — last occurrence wins, as it did before.
+    wijk_rows = {row["wijkcode"]: (row["wijk_naam"], row["wijkcode"]) for row in buurts}
+    gemeente_rows = {
+        row["gemeentecode"]: (
+            row["gemeente_naam"], row["gemeentecode"], row.get("province"),
+        )
+        for row in buurts
+    }
+    wijk_edges = {
+        row["wijkcode"]: (row["wijkcode"], row["gemeentecode"]) for row in buurts
+    }
 
-        for row in tqdm(buurts, desc="Ingesting edges"):
-            client.insert(
-                client.inserts["insert_buurt_wijk_edge"]["query"],
-                (row["code"], row["wijkcode"]),
-            )
-            client.insert(
-                client.inserts["insert_wijk_gemeente_edge"]["query"],
-                (row["wijkcode"], row["gemeentecode"]),
-            )
+    # Nodes before the edges that reference them.
+    stages = [
+        ("gemeente references", "insert_gemeente_reference", [
+            (row["gemeente"], row["gemeentecode"],
+             row.get("DimensionGroupId"), row.get("peiljaar"))
+            for row in gemeentes
+        ]),
+        ("buurt nodes", "insert_buurt_node", [
+            tuple(clean(row.get(src), col) for col, src in COLUMNS.items())
+            for row in buurts
+        ]),
+        ("wijk nodes", "insert_wijk_node", list(wijk_rows.values())),
+        ("gemeente nodes", "insert_gemeente_node", list(gemeente_rows.values())),
+        ("buurt-wijk edges", "insert_buurt_wijk_edge", [
+            (row["code"], row["wijkcode"]) for row in buurts
+        ]),
+        ("wijk-gemeente edges", "insert_wijk_gemeente_edge", list(wijk_edges.values())),
+    ]
+
+    print("Ingesting CBS data")
+    with client.transaction():
+        for label, statement, rows in stages:
+            print(f"  {label:<22} {len(rows):>8,}", flush=True)
+            client.insert_many(client.inserts[statement]["query"], rows)
+
+        print("  pruning stale nodes and refreshing aggregates", flush=True)
 
         client.insert(
             client.inserts["delete_stale_buurt_nodes"]["query"],
@@ -125,10 +137,6 @@ def ingest_gemeentes(
             (sorted(gemeente_codes),),
         )
         client.insert(client.inserts["refresh_cbs_aggregates"]["query"])
-        client.conn.commit()
-    except Exception:
-        client.conn.rollback()
-        raise
 
 
 if __name__ == "__main__":

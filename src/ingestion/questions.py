@@ -1,9 +1,9 @@
 from pathlib import Path
-import json
-from src.db.db_client import DBClient
-import math
+
 import yaml
-from tqdm import tqdm
+
+from src.db.db_client import DBClient
+
 
 def ingest_questions(client: DBClient, questions_path: Path | str) -> None:
 
@@ -12,20 +12,24 @@ def ingest_questions(client: DBClient, questions_path: Path | str) -> None:
 
     qs = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
 
-    for i, q in enumerate(tqdm(qs, desc="Ingesting questions")):
-        client.insert(
-            client.inserts["insert_question"]["query"],
-            (
-                q["id"],
-                q.get("section"),
-                q["type"],
-                q.get("values"),
-                q["nl"],
-                q["en"],
-                i,
-                q.get("origin"),
-            ),
+    rows = [
+        (
+            q["id"],
+            q.get("section"),
+            q["type"],
+            q.get("values"),
+            q["nl"],
+            q["en"],
+            i,
+            q.get("origin"),
         )
+        for i, q in enumerate(qs)
+    ]
+
+    with client.transaction():
+        client.insert_many(client.inserts["insert_question"]["query"], rows)
+
+    print(f"Ingested {len(rows)} questions")
 
 
 

@@ -7,8 +7,6 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from tqdm import tqdm
-
 from src.db.db_client import DBClient
 
 
@@ -100,96 +98,95 @@ def ingest_chunks(
         {doc_id for doc_id, _ in chunks},
         municipality_rows,
     )
-    areas: set[str] = set()
+    # Build every row set first, then send each as one batch. A per-row loop
+    # costs a network round trip per statement, which dominates the runtime
+    # once the database is remote.
+    reference_rows: dict[str, tuple[Any, ...]] = {}
+    report_rows: list[tuple[Any, ...]] = []
+    report_edge_rows: list[tuple[Any, ...]] = []
 
-    try:
-        for doc_id, municipality in municipalities.items():
-            client.insert(
-                client.inserts["insert_gemeente_reference"]["query"],
-                (
-                    municipality["gemeente"],
-                    municipality["gemeentecode"],
-                    municipality.get("DimensionGroupId"),
-                    municipality.get("peiljaar"),
-                ),
-            )
-            client.insert(
-                client.inserts["insert_report_node"]["query"],
-                (doc_id, municipality["gemeente"], "en"),
-            )
-            client.insert(
-                client.inserts["insert_report_gemeente_edge"]["query"],
-                (doc_id, municipality["gemeentecode"]),
+    for doc_id, municipality in municipalities.items():
+        reference_rows[municipality["gemeentecode"]] = (
+            municipality["gemeente"],
+            municipality["gemeentecode"],
+            municipality.get("DimensionGroupId"),
+            municipality.get("peiljaar"),
+        )
+        report_rows.append((doc_id, municipality["gemeente"], "en"))
+        report_edge_rows.append((doc_id, municipality["gemeentecode"]))
+
+    chunk_rows: list[tuple[Any, ...]] = []
+    chunk_report_rows: list[tuple[Any, ...]] = []
+    chunk_gemeente_rows: list[tuple[Any, ...]] = []
+
+    for (doc_id, index), chunk in chunks.items():
+        identifier = chunk_id(doc_id, index)
+        embedding = chunk.get("embedding")
+        chunk_rows.append((
+            identifier,
+            index,
+            chunk.get("language", "en"),  # this path reads data/corpus/mds_en
+            chunk.get("heading_path"),
+            chunk["text"],
+            chunk.get("char_start"),
+            chunk.get("char_end"),
+            chunk.get("n_chars", len(chunk["text"])),
+            embedding,
+            len(embedding) if embedding is not None else None,
+        ))
+        chunk_report_rows.append((identifier, doc_id))
+        chunk_gemeente_rows.append((identifier, municipalities[doc_id]["gemeentecode"]))
+
+    answer_rows: list[tuple[Any, ...]] = []
+    answer_edge_rows: list[tuple[Any, ...]] = []
+    area_rows: dict[str, tuple[Any, ...]] = {}
+    area_edge_rows: dict[tuple[str, str], tuple[str, str]] = {}
+
+    for (doc_id, index, concept_id), answer in answers.items():
+        chunk_identifier = chunk_id(doc_id, index)
+        answer_identifier = answer_id(doc_id, index, concept_id)
+        answer_rows.append((
+            answer_identifier,
+            concept_id,
+            answer["question"],
+            answer["answer"],
+            answer.get("section"),
+        ))
+        answer_edge_rows.append((answer_identifier, chunk_identifier))
+
+        for area in answer.get("areas", []):
+            area_type = area.get("type", "gebied").lower()
+            if area_type not in {"buurt", "wijk", "gebied"}:
+                area_type = "gebied"
+            area_identifier = area_id(doc_id, area["name"], area_type)
+            area_rows[area_identifier] = (area_identifier, area["name"], area_type)
+            area_edge_rows[(chunk_identifier, area_identifier)] = (
+                chunk_identifier, area_identifier,
             )
 
-        for (doc_id, index), chunk in tqdm(chunks.items(), desc="Ingesting chunks"):
-            identifier = chunk_id(doc_id, index)
-            embedding = chunk.get("embedding")
-            client.insert(
-                client.inserts["insert_chunk_node"]["query"],
-                (
-                    identifier,
-                    index,
-                    chunk.get("heading_path"),
-                    chunk["text"],
-                    chunk.get("char_start"),
-                    chunk.get("char_end"),
-                    chunk.get("n_chars", len(chunk["text"])),
-                    embedding,
-                    len(embedding) if embedding is not None else None,
-                ),
-            )
-            client.insert(
-                client.inserts["insert_chunk_report_edge"]["query"],
-                (identifier, doc_id),
-            )
-            client.insert(
-                client.inserts["insert_chunk_gemeente_edge"]["query"],
-                (identifier, municipalities[doc_id]["gemeentecode"]),
-            )
+    # Nodes before the edges that reference them.
+    stages = [
+        ("gemeente references", "insert_gemeente_reference", list(reference_rows.values())),
+        ("reports", "insert_report_node", report_rows),
+        ("report-gemeente edges", "insert_report_gemeente_edge", report_edge_rows),
+        ("chunks", "insert_chunk_node", chunk_rows),
+        ("chunk-report edges", "insert_chunk_report_edge", chunk_report_rows),
+        ("chunk-gemeente edges", "insert_chunk_gemeente_edge", chunk_gemeente_rows),
+        ("chunk answers", "insert_chunk_answer_node", answer_rows),
+        ("answer-chunk edges", "insert_answer_chunk_edge", answer_edge_rows),
+        ("areas", "insert_area_node", list(area_rows.values())),
+        ("chunk-area edges", "insert_chunk_area_edge", list(area_edge_rows.values())),
+    ]
 
-        for (doc_id, index, concept_id), answer in tqdm(
-            answers.items(), desc="Ingesting chunk answers"
-        ):
-            chunk_identifier = chunk_id(doc_id, index)
-            answer_identifier = answer_id(doc_id, index, concept_id)
-            client.insert(
-                client.inserts["insert_chunk_answer_node"]["query"],
-                (
-                    answer_identifier,
-                    concept_id,
-                    answer["question"],
-                    answer["answer"],
-                    answer.get("section"),
-                ),
-            )
-            client.insert(
-                client.inserts["insert_answer_chunk_edge"]["query"],
-                (answer_identifier, chunk_identifier),
-            )
-            for area in answer.get("areas", []):
-                area_type = area.get("type", "gebied").lower()
-                if area_type not in {"buurt", "wijk", "gebied"}:
-                    area_type = "gebied"
-                area_identifier = area_id(doc_id, area["name"], area_type)
-                areas.add(area_identifier)
-                client.insert(
-                    client.inserts["insert_area_node"]["query"],
-                    (area_identifier, area["name"], area_type),
-                )
-                client.insert(
-                    client.inserts["insert_chunk_area_edge"]["query"],
-                    (chunk_identifier, area_identifier),
-                )
-
-        client.conn.commit()
-    except Exception:
-        client.conn.rollback()
-        raise
+    print("Ingesting chunks")
+    with client.transaction():
+        for label, statement, rows in stages:
+            print(f"  {label:<22} {len(rows):>8,}", flush=True)
+            client.insert_many(client.inserts[statement]["query"], rows)
 
     return {
         "reports": len(municipalities),
         "chunks": len(chunks),
         "answers": len(answers),
-        "areas": len(areas),
+        "areas": len(area_rows),
     }

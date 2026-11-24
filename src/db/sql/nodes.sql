@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS report_nodes (
 CREATE TABLE IF NOT EXISTS chunk_nodes (
     id                   TEXT PRIMARY KEY,
     chunk_index          INTEGER NOT NULL CHECK (chunk_index >= 0),
+    language             TEXT,
     heading_path         TEXT,
     text                 TEXT NOT NULL,
     char_start           INTEGER CHECK (char_start IS NULL OR char_start >= 0),
@@ -123,6 +124,17 @@ CREATE TABLE IF NOT EXISTS chunk_nodes (
         OR embedding_dimensions = cardinality(embedding)
     )
 );
+
+-- Documents are chunked once per language, so retrieval can filter to one
+-- rendering instead of returning a passage and its translation as two hits.
+ALTER TABLE chunk_nodes
+    ADD COLUMN IF NOT EXISTS language TEXT;
+
+-- Chunks predating this column all came from data/corpus/mds_en.
+UPDATE chunk_nodes SET language = 'en' WHERE language IS NULL;
+
+CREATE INDEX IF NOT EXISTS chunk_nodes_language_idx
+    ON chunk_nodes (language);
 
 CREATE TABLE IF NOT EXISTS chunk_answer_nodes (
     id         TEXT PRIMARY KEY,
