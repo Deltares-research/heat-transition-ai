@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from src.agent import AgentResponse, BaseAgent
+from src.agent import AgentResponse, BaseAgent, DummyAgent
 
 __all__ = ["app"]
 
@@ -24,10 +24,9 @@ CORS_ORIGINS = os.environ.get(
     "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
 
-# No concrete BaseAgent subclass exists yet (src/agent/base.py only defines the
-# abstract interface). Point this at whichever subclass and config you add, and
-# swap the body of `get_agent` accordingly — everything else below is agnostic
-# to which agent is behind it.
+# Stubbed with DummyAgent until a real BaseAgent subclass exists. Swap the
+# body of `get_agent` for the real one — everything else below is agnostic to
+# which agent is behind it.
 AGENT_CONFIG = "example"
 
 
@@ -37,7 +36,7 @@ class AskRequest(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_agent() -> BaseAgent:
-    return BaseAgent(AGENT_CONFIG)
+    return DummyAgent(AGENT_CONFIG)
 
 
 app = FastAPI(title="heat-transition-ai agent API")
