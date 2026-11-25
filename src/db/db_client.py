@@ -21,7 +21,7 @@ import re
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 import psycopg2
 from dotenv import load_dotenv
@@ -368,19 +368,41 @@ class DBClient:
             extras.execute_batch(cur, query, rows, page_size=page_size)
         return len(rows)
 
-    def fetch(self, query: str, params: Sequence[Any] = ()) -> list[dict[str, Any]]:
+    def fetch(
+        self, query: str, params: Sequence[Any] | Mapping[str, Any] = (),
+    ) -> list[dict[str, Any]]:
         """Run a read and return every row as a dict."""
         self.ensure_connection()
         with self.conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
             cur.execute(query, params)
             return cur.fetchall()
 
-    def fetch_one(self, query: str, params: Sequence[Any] = ()) -> dict[str, Any] | None:
+    def fetch_one(
+        self, query: str, params: Sequence[Any] | Mapping[str, Any] = (),
+    ) -> dict[str, Any] | None:
         """Run a read and return the first row, or None."""
         self.ensure_connection()
         with self.conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
             cur.execute(query, params)
             return cur.fetchone()
+
+    def query(self, name: str, **params: Any) -> list[dict[str, Any]]:
+        """Run a registered read query (``src/db/sql/queries.sql``) by name.
+
+        Each ``$name`` placeholder in the registry becomes a psycopg2 named
+        parameter (``%(name)s``), so every placeholder the query uses must be
+        passed as a keyword argument here — pass ``None`` explicitly for an
+        ``IS NULL OR ...``-style optional filter, since presence is all that's
+        checked, not truthiness.
+        """
+        spec = self.queries.get(name)
+        if spec is None:
+            raise KeyError(f"No registered query named {name!r}")
+        missing = [p for p in spec["params"] if p not in params]
+        if missing:
+            raise ValueError(f"Query {name!r} is missing required params: {missing}")
+        sql = _PARAM_RE.sub(lambda m: f"%({m.group(1)})s", spec["query"])
+        return self.fetch(sql, params)
 
 
 # ──────────────────────────────────────────────────────────────

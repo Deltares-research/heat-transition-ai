@@ -1,66 +1,52 @@
 """
-MCP server over the warmteprogramma DuckDB.
+MCP server over the warmteprogramma knowledge graph (Postgres).
 
-Every query in queries.sql becomes a tool, registered dynamically from the
-`-- name / -- description / -- use when` headers. Adding a query to that file
-adds a tool; nothing here needs editing.
+Every query in ``src/db/sql/queries.sql`` becomes a tool, registered
+dynamically from its ``-- name / -- description / -- use when`` header.
+Adding a query to that file adds a tool; nothing here needs editing.
 
 Run:
-    python -m src.mcp.server                  # stdio
-    TRANSPORT=http python -m src.mcp.server   # streamable http
+    python -m src.mcp                         # stdio
+    TRANSPORT=http python -m src.mcp          # streamable http
 """
 
 from __future__ import annotations
+
 import inspect
 import json
 import os
-from pathlib import Path
 from typing import Any
+
 import pandas as pd
 from mcp.server import MCPServer
+
 from src.db.db_client import DBClient
 
-
-# DB_PATH = Path(os.environ.get(
-#     "DB_PATH",
-#     Path(__file__).parents[2] / "data" / f"{os.environ.get('DB_NAME', 'nplw')}.duckdb",
-# ))
-
-DB_PATH = "C:\\Users\\mavritsa\\repositories\\heat-transition-ai\\data\\nplw.duckdb"
+__all__ = ["build_server", "main"]
 
 MAX_ROWS = int(os.environ.get("MCP_MAX_ROWS", "200"))
 
-db = DBClient(DB_PATH, read_only=True)
-
 INSTRUCTIONS = """
 This server answers questions about Dutch municipal heat-transition programmes
-(warmteprogramma's) from a database of evidenced extractions.
+(warmteprogramma's) from a graph database of CBS demographics, programme
+documents and their extracted answers.
 
 Rules for using it well:
 
 1. A count means nothing without its denominator. Call `coverage_overview`
-   before reporting any aggregate, and state how many municipalities the
-   number is out of.
+   (or `province_overview` for a regional breakdown) before reporting any
+   aggregate, and state how many municipalities the number is out of.
 
-2. Silence and refusal are different. `modality = 'niet_vermeld'` means the
-   document does not address the topic; `expliciet_geen` means it demonstrably
-   rules it out. Never report the first as the second. Use
-   `explicitly_excluded` for refusals, not `who_answered`.
+2. Municipalities sharing a document are not independent observations. Check
+   `shared_documents` before reporting a count across several municipalities —
+   the same programme text may otherwise be counted more than once.
 
-3. Municipalities sharing a document are not independent observations. Check
-   `shared_documents` before reporting a count and qualify it if relevant.
+3. `search_quotes` and `answers_for_question` return whatever matched, not a
+   survey of every programme. Report their results as examples found, not a
+   complete picture, unless the result count matches `coverage_overview`.
 
-4. Every substantive answer carries a source quote and page. Cite them. If
-   `ref` is null, say the answer is uncited rather than presenting it as
-   evidenced.
-
-5. `search_quotes` returns whatever matched, not a survey of all programmes.
-   Report its results as examples found, never as a complete picture.
-
-6. Many quantitative parameters are structurally absent from these documents.
-   If asked for a national total of dwellings, euros or megawatts, use
-   `answerability_by_question` to show why it cannot be computed rather than
-   estimating one.
+4. `missing_programmes` lists municipalities with no linked document at all —
+   check it before treating silence on a topic as a negative answer.
 """.strip()
 
 
@@ -83,17 +69,13 @@ def _serialise(result: Any) -> str:
 
 
 PARAM_HINTS = {
-    "gemeente":    "Municipality name, e.g. 'Zwolle'. Case-insensitive.",
-    "question_id": "Question id from the registry — call list_questions first.",
-    "question_a":  "First question id.",
-    "question_b":  "Second question id.",
-    "province":    "Province name, e.g. 'Overijssel'.",
-    "pattern":     "SQL LIKE pattern, e.g. '%warmtenet%'. Use '%' to match all.",
-    "term":        "Free-text term to search for in the source quotes.",
+    "gemeente":    "Municipality name, e.g. 'Zwolle'. Case-insensitive. Pass '%' to match every municipality.",
+    "question_id": "Question id from the registry — call list_questions or find_questions first.",
+    "term":        "Free-text term to search for.",
 }
 
 
-def _make_handler(name: str, params: list[str]):
+def _make_handler(db: DBClient, name: str, params: list[str]):
     """
     Build an async handler whose signature matches the query's parameters —
     MCPServer.add_tool derives the input schema by inspecting the function.
@@ -114,7 +96,11 @@ def _make_handler(name: str, params: list[str]):
     return handler
 
 
-def build_server() -> MCPServer:
+def build_server(db: DBClient | None = None) -> MCPServer:
+    """Assemble the MCP server. Pass a fake `db` (with `.queries`, `.query`,
+    `.fetch`) to wire and inspect tools without a live database connection."""
+    db = db if db is not None else DBClient(readonly=True)
+
     server = MCPServer(
         name="warmteprogramma",
         title="Warmteprogramma's van Nederlandse gemeenten",
@@ -132,12 +118,14 @@ def build_server() -> MCPServer:
             description = f"{description}\n\nParameters:\n{hints}"
 
         server.add_tool(
-            _make_handler(name, spec["params"]),
+            _make_handler(db, name, spec["params"]),
             name=name,
             description=description,
         )
 
     # ── hand-written helpers the registry can't express ──────
+    # (these take real Python defaults, so their filters are genuinely
+    # optional — the registry-driven tools above require every param.)
     @server.tool(
         name="list_questions",
         description=(
@@ -147,35 +135,43 @@ def build_server() -> MCPServer:
         ),
     )
     async def list_questions(section: str | None = None) -> str:
-        sql = ("SELECT id, section, type, values, en, nl FROM question "
-               "WHERE ($1 IS NULL OR section ILIKE $1) ORDER BY ord")
-        df = db.conn.execute(sql.replace("$1", "?"), [section, section]).df()
-        return _serialise(df)
+        rows = db.fetch(
+            "SELECT id, section, type, allowed, en, nl, ord "
+            "FROM question "
+            "WHERE (%s IS NULL OR section ILIKE %s) "
+            "ORDER BY ord",
+            (section, section),
+        )
+        return _serialise(rows)
 
     @server.tool(
         name="list_municipalities",
         description=(
-            "Municipalities in the reference list, with whether a programme was "
-            "found.\n\nUse when: Resolving a name, or checking a municipality is "
-            "covered before querying it."
+            "Municipalities with their CBS population and whether a programme "
+            "document was found.\n\nUse when: Resolving a name, or checking a "
+            "municipality is covered before querying it."
         ),
     )
     async def list_municipalities(province: str | None = None) -> str:
-        df = db.conn.execute(
-            "SELECT gemeente, gemeentecode, province, region, number_users, "
-            "       url IS NOT NULL AS heeft_programma "
-            "FROM gemeente WHERE (? IS NULL OR province ILIKE ?) "
-            "ORDER BY number_users DESC NULLS LAST",
-            [province, province],
-        ).df()
-        return _serialise(df)
+        rows = db.fetch(
+            "SELECT g.code, g.name, g.province, g.population, "
+            "       EXISTS (SELECT 1 FROM report_gemeente_edges e "
+            "               WHERE e.gemeente_code = g.code) AS heeft_programma "
+            "FROM gemeente_nodes g "
+            "WHERE (%s IS NULL OR g.province ILIKE %s) "
+            "ORDER BY g.population DESC NULLS LAST",
+            (province, province),
+        )
+        return _serialise(rows)
 
     @server.tool(
         name="run_sql",
         description=(
-            "Run a read-only SELECT against the database. Tables: gemeente, "
-            "question, response.\n\nUse when: No registered query fits. Prefer "
-            "the named queries — they encode the silence and denominator rules."
+            "Run a read-only SELECT against the database. Tables: gemeente_nodes, "
+            "wijk_nodes, buurt_nodes, question, report_nodes, chunk_nodes, "
+            "chunk_answer_nodes, area_nodes, and their *_edges join tables.\n\n"
+            "Use when: No registered query fits. Prefer the named queries — they "
+            "encode the denominator and shared-document rules."
         ),
     )
     async def run_sql(sql: str) -> str:
@@ -186,7 +182,7 @@ def build_server() -> MCPServer:
                ("insert", "update", "delete", "drop", "create", "alter", "attach", "copy")):
             return json.dumps({"error": "write and DDL statements are not allowed"})
         try:
-            return _serialise(db.conn.execute(sql).df())
+            return _serialise(db.fetch(sql))
         except Exception as exc:
             return json.dumps({"error": f"{type(exc).__name__}: {exc}"},
                               ensure_ascii=False)
@@ -206,6 +202,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-
     main()
-
