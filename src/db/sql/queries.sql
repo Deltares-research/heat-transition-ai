@@ -101,6 +101,40 @@ ORDER BY g.name
 LIMIT 200;
 
 
+-- name: similar_chunks
+-- description: Semantic search over programme chunk text, ranked by cosine similarity to a query embedding (same model/dimensions as src/embedding).
+-- use when: Asked something a keyword search (search_quotes) would miss because the wording differs from the source text. Pass '%' for gemeente and language to cover everything.
+SELECT
+    g.name AS gemeente, r.doc_id, r.title AS doc_title, c.heading_path,
+    left(c.text, 500) AS snippet,
+    cosine_similarity(c.embedding, $embedding) AS similarity
+FROM chunk_nodes c
+JOIN chunk_gemeente_edges cge ON cge.chunk_id = c.id
+JOIN gemeente_nodes g         ON g.code = cge.gemeente_code
+JOIN chunk_report_edges cre   ON cre.chunk_id = c.id
+JOIN report_nodes r           ON r.doc_id = cre.doc_id
+WHERE c.embedding IS NOT NULL
+  AND g.name ILIKE $gemeente
+  AND c.language ILIKE $language
+ORDER BY similarity DESC
+LIMIT $limit;
+
+
+-- name: similar_chunks_in_document
+-- description: Semantic search restricted to one programme document's chunks, ranked by cosine similarity to a query embedding.
+-- use when: You already have a doc_id (e.g. from reports_for_municipality) and want the passages in that one report closest to a topic, rather than searching the whole corpus.
+SELECT
+    c.heading_path,
+    left(c.text, 500) AS snippet,
+    cosine_similarity(c.embedding, $embedding) AS similarity
+FROM chunk_nodes c
+JOIN chunk_report_edges cre ON cre.chunk_id = c.id
+WHERE cre.doc_id = $doc_id
+  AND c.embedding IS NOT NULL
+ORDER BY similarity DESC
+LIMIT $limit;
+
+
 -- name: shared_documents
 -- description: Programme documents that cover more than one municipality.
 -- use when: Before reporting any count across several municipalities. Municipalities sharing a document are not independent observations.

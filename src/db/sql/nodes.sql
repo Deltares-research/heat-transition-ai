@@ -136,6 +136,25 @@ UPDATE chunk_nodes SET language = 'en' WHERE language IS NULL;
 CREATE INDEX IF NOT EXISTS chunk_nodes_language_idx
     ON chunk_nodes (language);
 
+-- Cosine similarity between two embedding vectors, stored as plain
+-- double precision[] (no pgvector extension assumed). NULL if either array
+-- is NULL or either norm is zero, so an empty/missing embedding drops out
+-- of an ORDER BY instead of raising.
+CREATE OR REPLACE FUNCTION cosine_similarity(a DOUBLE PRECISION[], b DOUBLE PRECISION[])
+RETURNS DOUBLE PRECISION
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $$
+    SELECT (SELECT sum(x * y) FROM unnest(a, b) AS t(x, y))
+         / NULLIF(
+               sqrt((SELECT sum(x * x) FROM unnest(a) AS t(x)))
+             * sqrt((SELECT sum(y * y) FROM unnest(b) AS t(y))),
+               0
+           )
+    WHERE a IS NOT NULL AND b IS NOT NULL;
+$$;
+
 CREATE TABLE IF NOT EXISTS chunk_answer_nodes (
     id         TEXT PRIMARY KEY,
     concept_id TEXT NOT NULL,

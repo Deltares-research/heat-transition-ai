@@ -1,9 +1,10 @@
 """
 MCP server over the warmteprogramma knowledge graph (Postgres).
 
-Every query in ``src/db/sql/queries.sql`` becomes a tool, registered
-dynamically from its ``-- name / -- description / -- use when`` header.
-Adding a query to that file adds a tool; nothing here needs editing.
+Every query in ``src/db/sql/queries.sql`` becomes a tool, via the
+``AGENT_TOOLS`` registry built in ``src/tools`` from its ``-- name /
+-- description / -- use when`` header. Adding a query to that file adds a
+tool; nothing here needs editing.
 
 Run:
     python -m apps.mcp                         # stdio
@@ -12,7 +13,6 @@ Run:
 
 from __future__ import annotations
 
-import inspect
 import json
 import os
 from typing import Any
@@ -21,6 +21,7 @@ import pandas as pd
 from mcp.server import MCPServer
 
 from src.db import DBClient
+from src.tools import AGENT_TOOLS, SQLTool
 
 __all__ = ["build_server", "main"]
 
@@ -72,33 +73,37 @@ PARAM_HINTS = {
     "gemeente":    "Municipality name, e.g. 'Zwolle'. Case-insensitive. Pass '%' to match every municipality.",
     "question_id": "Question id from the registry — call list_questions or find_questions first.",
     "term":        "Free-text term to search for.",
+    "embedding":   "Query embedding vector (src/embedding, text-embedding-3-large) as a list of floats.",
+    "doc_id":      "Document id, e.g. from reports_for_municipality or search_quotes.",
+    "language":    "Chunk language, e.g. 'nl' or 'en'. Pass '%' to match both.",
+    "limit":       "Maximum number of rows to return.",
 }
 
 
-def _make_handler(db: DBClient, name: str, params: list[str]):
+def _make_handler(tool: SQLTool, db: DBClient):
     """
-    Build an async handler whose signature matches the query's parameters —
-    MCPServer.add_tool derives the input schema by inspecting the function.
+    Wrap an ``SQLTool`` as an async handler whose signature matches the
+    query's parameters — MCPServer.add_tool derives the input schema by
+    inspecting the function.
     """
+    run = tool.bind(db)
+
     async def handler(**kwargs: Any) -> str:
         try:
-            return _serialise(db.query(name, **kwargs))
+            return _serialise(run(**kwargs))
         except Exception as exc:  # surface as a tool error, not a crash
             return json.dumps({"error": f"{type(exc).__name__}: {exc}"},
                               ensure_ascii=False)
 
-    handler.__name__ = name
-    handler.__signature__ = inspect.Signature(
-        [inspect.Parameter(p, inspect.Parameter.KEYWORD_ONLY, annotation=str)
-         for p in params]
-    )
-    handler.__annotations__ = {p: str for p in params} | {"return": str}
+    handler.__name__ = run.__name__
+    handler.__signature__ = run.__signature__
+    handler.__annotations__ = {**run.__annotations__, "return": str}
     return handler
 
 
 def build_server(db: DBClient | None = None) -> MCPServer:
-    """Assemble the MCP server. Pass a fake `db` (with `.queries`, `.query`,
-    `.fetch`) to wire and inspect tools without a live database connection."""
+    """Assemble the MCP server. Pass a fake `db` (with `.query`, `.fetch`) to
+    wire and inspect tools without a live database connection."""
     db = db if db is not None else DBClient(readonly=True)
 
     server = MCPServer(
@@ -109,16 +114,16 @@ def build_server(db: DBClient | None = None) -> MCPServer:
     )
 
     # ── registry-driven tools ────────────────────────────────
-    for name, spec in db.queries.items():
-        description = spec["description"]
-        if spec.get("use_when"):
-            description = f"{description}\n\nUse when: {spec['use_when']}"
-        if spec["params"]:
-            hints = "\n".join(f"- {p}: {PARAM_HINTS.get(p, '')}" for p in spec["params"])
+    for name, tool in AGENT_TOOLS.items():
+        description = tool.description
+        if tool.use_when:
+            description = f"{description}\n\nUse when: {tool.use_when}"
+        if tool.params:
+            hints = "\n".join(f"- {p}: {PARAM_HINTS.get(p, '')}" for p in tool.params)
             description = f"{description}\n\nParameters:\n{hints}"
 
         server.add_tool(
-            _make_handler(db, name, spec["params"]),
+            _make_handler(tool, db),
             name=name,
             description=description,
         )
