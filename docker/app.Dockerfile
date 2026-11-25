@@ -21,7 +21,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx gcc libpq-dev \
+    && apt-get install -y --no-install-recommends nginx gcc libc6-dev libpq-dev \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 
