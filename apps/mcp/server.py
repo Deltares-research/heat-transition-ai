@@ -6,8 +6,8 @@ dynamically from its ``-- name / -- description / -- use when`` header.
 Adding a query to that file adds a tool; nothing here needs editing.
 
 Run:
-    python -m src.mcp                         # stdio
-    TRANSPORT=http python -m src.mcp          # streamable http
+    python -m apps.mcp                         # stdio
+    TRANSPORT=http python -m apps.mcp          # streamable http
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any
 import pandas as pd
 from mcp.server import MCPServer
 
-from src.db.db_client import DBClient
+from src.db import DBClient
 
 __all__ = ["build_server", "main"]
 

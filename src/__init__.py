@@ -1,18 +1,9 @@
-from src.blob import BlobStore
-from src.ingestion import download_pdfs
-from src.responder import ask, ask_batch
-from src.db import DBClient, clean, parse_response
-from src.ingestion import ingest_gemeentes, ingest_questions
+"""heat-transition-ai: independent subpackages, no shared re-exports.
 
-__all__ = [
-    "download_pdfs",
-    "ask",
-    "ask_batch",
-    "BlobStore",
-    "DBClient",
-    "clean",
-    "parse_response",
-    "ingest_gemeentes",
-    "ingest_questions",
-]
+Each subsystem (agent, api, blob, cli, db, embedding, ingestion, mcp,
+responder, text, tools) is imported directly, e.g. ``from src.db import
+DBClient``. Nothing is re-exported here, since any ``src.*`` import runs
+this file first — re-exporting one subsystem's heavy dependencies here
+would force-load them for every other subsystem too.
+"""
 

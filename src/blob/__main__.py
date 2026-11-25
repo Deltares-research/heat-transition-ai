@@ -1,3 +1,3 @@
-from src.blob.blob_client import main
+from src.blob import main
 
 raise SystemExit(main())

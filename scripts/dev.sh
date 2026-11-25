@@ -41,7 +41,7 @@ trap cleanup EXIT INT TERM
 
 cd "$ROOT"
 echo "backend  -> http://localhost:${BACKEND_PORT}"
-uv run uvicorn src.api.app:app --port "$BACKEND_PORT" &
+uv run uvicorn apps.api:app --port "$BACKEND_PORT" &
 pids+=("$!")
 
 cd "$ROOT/webapp"

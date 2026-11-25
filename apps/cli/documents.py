@@ -19,11 +19,11 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from src.blob.blob_client import BlobStore
-from src.cli._render import render_table_diff
-from src.db.db_client import DBClient, table_counts
-from src.embedding.embedder import Embedder, EmbeddingConfig
-from src.ingestion.documents import (
+from apps.cli._render import render_table_diff
+from src.blob import BlobStore
+from src.db import DBClient, table_counts
+from src.embedding import Embedder, EmbeddingConfig
+from src.ingestion import (
     DEFAULT_LOG_PATH,
     DOCUMENT_TABLES,
     STAGE_LABELS,

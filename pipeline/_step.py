@@ -7,7 +7,7 @@ Every step is a standalone script that can be run directly::
 This module holds only script plumbing — argument-parsing conventions, a
 timing/error wrapper, a plain-text row-count diff printer, and a re-export of
 `require_file`. The actual ingestion logic lives in `src/`, importable by
-both these scripts and `src/cli/` (the Rich CLI), so the two presentations
+both these scripts and `apps/cli/` (the Rich CLI), so the two presentations
 never diverge on what a step actually does.
 
 Zero-padded step numbers (01_, 02_) mark the rebuilt pipeline; single-digit

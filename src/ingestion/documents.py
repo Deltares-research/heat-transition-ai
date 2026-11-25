@@ -17,10 +17,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 
-from src.blob.blob_client import BlobStore
-from src.db.db_client import DBClient
-from src.embedding.embedder import Embedder
-from src.text.processing import Chunk, chunk_markdown, pdf_to_markdown, translate_markdown
+from src.blob import BlobStore
+from src.db import DBClient
+from src.embedding import Embedder
+from src.text import Chunk, chunk_markdown, pdf_to_markdown, translate_markdown
 
 __all__ = [
     "DEFAULT_LOG_PATH",

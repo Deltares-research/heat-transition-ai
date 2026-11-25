@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import yaml
 from tqdm import tqdm
-from src import ask_batch, ask
+from src.responder import ask_batch, ask
 from dotenv import load_dotenv
 import os
 

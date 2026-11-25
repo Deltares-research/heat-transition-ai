@@ -10,7 +10,7 @@ reprocesses everything, replacing existing chunks.
 
 All the logic lives in src/ingestion/documents.py — this script is just the
 plain-text presentation of it. The same logic also drives
-`python -m src.cli ingest-documents`, the Rich CLI.
+`python -m apps.cli ingest-documents`, the Rich CLI.
 
 Credentials: secrets/blob.env, secrets/embedder.env, secrets/db.env.
 
@@ -25,10 +25,10 @@ from __future__ import annotations
 from _step import report, run, step_parser
 from tqdm import tqdm
 
-from src.blob.blob_client import BlobStore
-from src.db.db_client import DBClient, table_counts
-from src.embedding.embedder import Embedder, EmbeddingConfig
-from src.ingestion.documents import (
+from src.blob import BlobStore
+from src.db import DBClient, table_counts
+from src.embedding import Embedder, EmbeddingConfig
+from src.ingestion import (
     DEFAULT_LOG_PATH,
     DOCUMENT_TABLES,
     STAGE_LABELS,

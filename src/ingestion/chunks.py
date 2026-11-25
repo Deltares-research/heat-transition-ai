@@ -7,7 +7,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from src.db.db_client import DBClient
+from src.db import DBClient
 
 
 def load_records(path: Path | str) -> list[dict[str, Any]]:

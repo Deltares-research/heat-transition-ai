@@ -1,3 +1,3 @@
-from src.db.db_client import main
+from src.db import main
 
 raise SystemExit(main())

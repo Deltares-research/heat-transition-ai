@@ -7,8 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.db.db_client import DBClient
-from src.ingestion.chunks import ingest_chunks
+from src.db import DBClient
+from src.ingestion import ingest_chunks
 
 
 DEFAULT_CHUNKS_PATH = ROOT / "data/processed/chunks_embedded.jsonl"

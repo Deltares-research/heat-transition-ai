@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from src.db.db_client import DBClient
+from src.db import DBClient
 
 
 def ingest_questions(client: DBClient, questions_path: Path | str) -> None:

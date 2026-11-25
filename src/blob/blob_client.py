@@ -42,7 +42,7 @@ from dotenv import load_dotenv
 
 from src.console import safe_console
 
-__all__ = ["BlobStore", "BlobInfo", "SyncReport", "resolve_connection_string"]
+__all__ = ["BlobStore", "BlobInfo", "SyncReport", "resolve_connection_string", "main"]
 
 
 ROOT = Path(__file__).parents[2]

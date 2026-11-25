@@ -12,9 +12,9 @@ import argparse
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from src.cli._render import render_table_diff
-from src.db.db_client import DBClient
-from src.ingestion.gemeentes import (
+from apps.cli._render import render_table_diff
+from src.db import DBClient
+from src.ingestion import (
     DEFAULT_BUURT_PATH,
     DEFAULT_GEMEENTE_PATH,
     run_gemeente_ingest,

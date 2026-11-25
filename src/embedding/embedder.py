@@ -22,7 +22,7 @@ from src.console import safe_console
 litellm.suppress_debug_info = True
 litellm.drop_params = True
 
-__all__ = ["Embedder", "EmbeddingConfig"]
+__all__ = ["Embedder", "EmbeddingConfig", "main"]
 
 ROOT = Path(__file__).parents[2]
 ENV_PATH = ROOT / "secrets" / "embedder.env"

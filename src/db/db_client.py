@@ -32,7 +32,7 @@ from src.db.utils import clean, parse_response
 
 __all__ = [
     "DBClient", "clean", "parse_response", "resolve_dsn", "load_registry",
-    "table_counts",
+    "table_counts", "main",
 ]
 
 

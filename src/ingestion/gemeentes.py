@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from src.db.db_client import DBClient, table_counts
+from src.db import DBClient, table_counts
 from src.paths import require_file
 
 ROOT = Path(__file__).parents[2]

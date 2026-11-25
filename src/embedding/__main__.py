@@ -1,3 +1,3 @@
-from src.embedding.embedder import main
+from src.embedding import main
 
 raise SystemExit(main())

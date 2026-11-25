@@ -9,7 +9,7 @@ pruned, so re-running converges on exactly what the files describe.
 
 All the logic lives in src/ingestion/gemeentes.py — this script is just the
 plain-text presentation of it. The same logic also drives
-`python -m src.cli ingest-gemeentes`, the Rich CLI.
+`python -m apps.cli ingest-gemeentes`, the Rich CLI.
 
     python pipeline/01_ingest_gemeentes.py
     python pipeline/01_ingest_gemeentes.py --buurten other.jsonl
@@ -19,8 +19,8 @@ from __future__ import annotations
 
 from _step import report, require_file, run, step_parser
 
-from src.db.db_client import DBClient
-from src.ingestion.gemeentes import (
+from src.db import DBClient
+from src.ingestion import (
     DEFAULT_BUURT_PATH,
     DEFAULT_GEMEENTE_PATH,
     run_gemeente_ingest,

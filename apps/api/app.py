@@ -1,8 +1,8 @@
 """FastAPI app exposing the agent in ``src/agent`` over HTTP.
 
 Run:
-    python -m src.api                  # uvicorn on :8000
-    uvicorn src.api.app:app --reload   # dev server with reload
+    python -m apps.api               # uvicorn on :8000
+    uvicorn apps.api:app --reload    # dev server with reload
 """
 
 from __future__ import annotations

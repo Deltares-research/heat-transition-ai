@@ -1,9 +1,9 @@
 """Entry point and command dispatch for the Rich CLI.
 
-    python -m src.cli ingest-gemeentes
-    python -m src.cli ingest-documents --prefix corpus/ --limit 5
+    python -m apps.cli ingest-gemeentes
+    python -m apps.cli ingest-documents --prefix corpus/ --limit 5
 
-Each `src/cli/<command>.py` module exposes `add_parser(subparsers)`, which
+Each `apps/cli/<command>.py` module exposes `add_parser(subparsers)`, which
 registers its subcommand and wires `parser.set_defaults(handler=run)`. `run`
 takes `(args, console)` and returns an exit code — the same shape for every
 command, so adding one is just another `add_parser` call below.
@@ -17,8 +17,8 @@ import time
 from rich.console import Console
 from rich.traceback import install as install_rich_traceback
 
-from src.cli import documents as documents_cmd
-from src.cli import gemeentes as gemeentes_cmd
+from apps.cli import documents as documents_cmd
+from apps.cli import gemeentes as gemeentes_cmd
 from src.console import safe_console
 
 __all__ = ["build_parser", "main"]
@@ -26,7 +26,7 @@ __all__ = ["build_parser", "main"]
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m src.cli",
+        prog="python -m apps.cli",
         description="Heat-transition-ai pipeline commands.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
