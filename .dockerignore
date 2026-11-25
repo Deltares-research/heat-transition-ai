@@ -1,0 +1,13 @@
+.git
+.venv
+.idea
+.vscode
+.claude
+logs
+data
+secrets
+.env
+*.log
+
+webapp/node_modules
+webapp/dist
