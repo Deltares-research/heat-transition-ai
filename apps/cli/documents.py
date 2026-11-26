@@ -45,7 +45,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--prefix", default="", help="only blobs under this prefix")
-    parser.add_argument("--container", default=None, help="override secrets/blob.env")
+    parser.add_argument("--container", default=None, help="override secrets/corpus.env")
     parser.add_argument(
         "--force",
         action="store_true",

@@ -47,3 +47,7 @@ class AgentResponse(BaseModel):
     reasoning_steps: list[str] = Field(default_factory=list)
     references: list[Reference] = Field(default_factory=list)
     token_usage: list[TokenUsage] = Field(default_factory=list)
+    # Not set by `respond()` itself — filled in afterwards by
+    # `src.agent.scoring.score()`, which judges this response's RAG quality
+    # (faithfulness, answer/context relevancy) standalone, per question.
+    scoring: str | None = None

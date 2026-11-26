@@ -11,12 +11,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-import litellm
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parents[2] / ".env")
-
-litellm.drop_params = True  # reasoning models reject temperature, max_tokens, etc.
 
 MODEL = os.environ.get("MODEL", "gpt-5.4")
 API_KEY = os.environ.get("API_KEY")
@@ -136,6 +133,10 @@ def _document_block(md: str) -> tuple[str, bool]:
 
 
 def _complete(messages: list[dict[str, str]]) -> tuple[str, Any]:
+    import litellm
+
+    litellm.drop_params = True  # reasoning models reject temperature, max_tokens, etc.
+
     completion = litellm.completion(
         model=MODEL,
         api_key=API_KEY,

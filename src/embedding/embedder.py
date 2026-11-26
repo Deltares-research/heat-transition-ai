@@ -14,13 +14,9 @@ import os
 from pathlib import Path
 from typing import Iterator, Sequence
 
-import litellm
 from dotenv import load_dotenv
 
 from src.console import safe_console
-
-litellm.suppress_debug_info = True
-litellm.drop_params = True
 
 __all__ = ["Embedder", "EmbeddingConfig", "main"]
 
@@ -75,6 +71,11 @@ class Embedder:
         self.config = config or EmbeddingConfig()
 
     def _call(self, texts: Sequence[str]) -> list[list[float]]:
+        import litellm
+
+        litellm.suppress_debug_info = True
+        litellm.drop_params = True
+
         response = litellm.embedding(
             model=self.config.model,
             input=list(texts),

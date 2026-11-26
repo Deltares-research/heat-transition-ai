@@ -2,8 +2,6 @@ import requests
 import pandas as pd
 from pathlib import Path
 import json
-import pymupdf
-import pymupdf4llm
 import re
 import hashlib
 from tqdm import tqdm
@@ -11,7 +9,6 @@ from urllib.parse import urljoin, urlparse
 from typing import Any
 from datetime import datetime, timezone
 from jinja2 import Environment, StrictUndefined
-import trafilatura
 from bs4 import BeautifulSoup
 from xml.etree import ElementTree as ET
 from urllib.parse import quote
@@ -35,6 +32,8 @@ def parse_excel(path: Path | str) -> list[dict[str, Any]]:
 
 
 def validate_pdf(data: bytes) -> tuple[bool, str]:
+    import pymupdf
+
     if not data.startswith(b"%PDF-"):
         return False, f"not a pdf: {data[:16]!r}"
     if b"%%EOF" not in data[-2048:]:
@@ -62,6 +61,9 @@ def pdf_to_md(
     ref_prefix is how the md file reaches the assets dir (md and assets are
     siblings under processed/, so the default walks up one level).
     """
+    import pymupdf
+    import pymupdf4llm
+
     assets_dir = Path(path) / stem
     assets_dir.mkdir(exist_ok=True, parents=True)
 
@@ -283,6 +285,8 @@ def resolve(url: str, session: requests.Session) -> tuple[str, Any, str]:
 
 
 def html_to_md(data: bytes, url: str) -> str:
+    import trafilatura
+
     return trafilatura.extract(
         data, url=url, output_format="markdown",
         include_tables=True, include_links=False,

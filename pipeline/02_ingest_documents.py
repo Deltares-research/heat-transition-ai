@@ -12,7 +12,7 @@ All the logic lives in src/ingestion/documents.py — this script is just the
 plain-text presentation of it. The same logic also drives
 `python -m apps.cli ingest-documents`, the Rich CLI.
 
-Credentials: secrets/blob.env, secrets/embedder.env, secrets/db.env.
+Credentials: secrets/corpus.env, secrets/embedder.env, secrets/db.env.
 
     python pipeline/02_ingest_documents.py
     python pipeline/02_ingest_documents.py --prefix corpus/ --limit 5
@@ -42,7 +42,7 @@ from src.ingestion import (
 def step() -> int:
     parser = step_parser(__doc__.splitlines()[0])
     parser.add_argument("--prefix", default="", help="only blobs under this prefix")
-    parser.add_argument("--container", default=None, help="override secrets/blob.env")
+    parser.add_argument("--container", default=None, help="override secrets/corpus.env")
     parser.add_argument(
         "--force",
         action="store_true",

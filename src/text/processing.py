@@ -12,16 +12,10 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import litellm
-import pymupdf
-import pymupdf4llm
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parents[2]
 load_dotenv(ROOT / ".env")
-
-litellm.drop_params = True
-litellm.suppress_debug_info = True
 
 __all__ = ["Chunk", "chunk_markdown", "pdf_to_markdown", "translate_markdown"]
 
@@ -49,6 +43,9 @@ class Chunk:
 
 def pdf_to_markdown(data: bytes) -> str:
     """Extract markdown from PDF bytes."""
+    import pymupdf
+    import pymupdf4llm
+
     with pymupdf.open(stream=data, filetype="pdf") as doc:
         return pymupdf4llm.to_markdown(doc, show_progress=False)
 
@@ -185,6 +182,11 @@ def _split_for_translation(text: str, max_chars: int) -> list[str]:
 
 def translate_markdown(text: str, model: str | None = None) -> str:
     """Translate Dutch markdown to English, preserving structure."""
+    import litellm
+
+    litellm.drop_params = True
+    litellm.suppress_debug_info = True
+
     pieces = _split_for_translation(text, TRANSLATE_CHUNK_CHARS)
     out: list[str] = []
 

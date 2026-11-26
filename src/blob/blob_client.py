@@ -4,7 +4,7 @@ Blob names mirror the local ``data/`` tree, so ``data/corpus/pdfs/almelo.pdf``
 is ``corpus/pdfs/almelo.pdf`` in the container. The mapping is reversible and
 needs no lookup table, which is what makes push/pull round-trip cleanly.
 
-Credentials live in ``secrets/blob.env``:
+Credentials live in ``secrets/corpus.env``:
 
     AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
     AZURE_STORAGE_CONTAINER=nplw
@@ -46,7 +46,7 @@ __all__ = ["BlobStore", "BlobInfo", "SyncReport", "resolve_connection_string", "
 
 
 ROOT = Path(__file__).parents[2]
-ENV_PATH = ROOT / "secrets" / "blob.env"
+ENV_PATH = ROOT / "secrets" / "corpus.env"
 DATA_ROOT = ROOT / "data"
 
 DEFAULT_CONTAINER = "nplw"
@@ -65,7 +65,7 @@ Create {ENV_PATH} containing:
     AZURE_STORAGE_CONTAINER=nplw
 
 or set AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_KEY.
-See secrets/blob.env.example."""
+See secrets/corpus.env.example."""
 
 _AUTH_HINT = """Check, in this order:
   1. the connection string was copied whole (it ends with EndpointSuffix=...),
@@ -79,7 +79,7 @@ _AUTH_HINT = """Check, in this order:
 # ──────────────────────────────────────────────────────────────
 
 def resolve_connection_string(env_path: Path | str = ENV_PATH) -> str:
-    """Connection string from the environment, falling back to secrets/blob.env."""
+    """Connection string from the environment, falling back to secrets/corpus.env."""
     load_dotenv(env_path)
 
     conn = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")

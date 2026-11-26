@@ -1,0 +1,36 @@
+name: AI Ops Eval
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run RAG-scoring eval
+        env:
+          MODEL: ${{ secrets.MODEL }}
+          JUDGE_MODEL: ${{ secrets.JUDGE_MODEL }}
+          API_KEY: ${{ secrets.API_KEY }}
+          API_BASE: ${{ secrets.API_BASE }}
+        run: uv run python -m aiops.run_eval
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiops-report
+          path: aiops/report.json
