@@ -43,10 +43,10 @@ class AgentResponse(BaseModel):
 
     user_prompt: str
     agent_response: str
-    tool_calls: list[ToolCall] = Field(default_factory=list)
-    reasoning_steps: list[str] = Field(default_factory=list)
-    references: list[Reference] = Field(default_factory=list)
-    token_usage: list[TokenUsage] = Field(default_factory=list)
+    tool_calls: list[ToolCall] | None = Field(default_factory=list)
+    reasoning_steps: list[str] | None = Field(default_factory=list)
+    references: list[Reference] | None = Field(default_factory=list)
+    token_usage: list[TokenUsage] | None = Field(default_factory=list)
     # Not set by `respond()` itself — filled in afterwards by
     # `src.agent.scoring.score()`, which judges this response's RAG quality
     # (faithfulness, answer/context relevancy) standalone, per question.
